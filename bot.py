@@ -390,19 +390,19 @@ def get_user_limit(user_id: int) -> int:
 def get_style_keyboard(prompt: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌑 Минимализм", callback_data=f"gen:{prompt[:30]}:minimal dark"),
-            InlineKeyboardButton(text="🌈 Яркий", callback_data=f"gen:{prompt[:30]}:vibrant colorful"),
+            InlineKeyboardButton(text="🌑 Минимализм", callback_data=f"gen:{prompt[:50]}:minimal dark"),
+            InlineKeyboardButton(text="🌈 Яркий", callback_data=f"gen:{prompt[:50]}:vibrant colorful"),
         ],
         [
-            InlineKeyboardButton(text="🏛 Премиум", callback_data=f"gen:{prompt[:30]}:luxury elegant"),
-            InlineKeyboardButton(text="🌿 Органик", callback_data=f"gen:{prompt[:30]}:organic natural"),
+            InlineKeyboardButton(text="🏛 Премиум", callback_data=f"gen:{prompt[:50]}:luxury elegant"),
+            InlineKeyboardButton(text="🌿 Органик", callback_data=f"gen:{prompt[:50]}:organic natural"),
         ],
         [
-            InlineKeyboardButton(text="⚡ Ретро", callback_data=f"gen:{prompt[:30]}:retro 80s neon"),
-            InlineKeyboardButton(text="🔥 Брутализм", callback_data=f"gen:{prompt[:30]}:brutalist bold"),
+            InlineKeyboardButton(text="⚡ Ретро", callback_data=f"gen:{prompt[:50]}:retro 80s neon"),
+            InlineKeyboardButton(text="🔥 Брутализм", callback_data=f"gen:{prompt[:50]}:brutalist bold"),
         ],
         [
-            InlineKeyboardButton(text="✨ Свой выбор AI", callback_data=f"gen:{prompt[:30]}:"),
+            InlineKeyboardButton(text="✨ Свой выбор AI", callback_data=f"gen:{prompt[:50]}:"),
         ]
     ])
 
@@ -482,8 +482,9 @@ async def cmd_help(message: Message):
 @router.message(Command("styles"))
 async def cmd_styles(message: Message):
     await message.answer(
-        "Выбери стиль для следующего дизайна:",
-        reply_markup=get_style_keyboard("placeholder"),
+        "Сначала напиши что за сайт нужен, затем выбери стиль.\n\n"
+        "Например: <i>Лендинг для кофейни в стиле ретро</i>",
+        parse_mode="HTML",
     )
 
 
@@ -568,7 +569,12 @@ async def cb_pick_style(callback: CallbackQuery):
 async def cb_generate_with_style(callback: CallbackQuery):
     parts = callback.data.split(":", 2)
     prompt, style = parts[1], parts[2]
-    full_prompt = f"{prompt}\nStyle: {style}" if style else prompt
+    
+    if not prompt or prompt == "placeholder" or len(prompt) < 5:
+        await callback.answer("Сначала напиши описание дизайна!", show_alert=True)
+        return
+    
+    full_prompt = f"{prompt}. Apply this style: {style}" if style else prompt
     await callback.answer("Генерирую...")
     await process_design(callback.message, callback.from_user.id, full_prompt, style=style)
 
