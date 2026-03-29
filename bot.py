@@ -54,10 +54,11 @@ SYSTEM_PROMPT = """You are an expert frontend designer. Create distinctive, prod
 - Backgrounds: Gradient meshes, noise textures, geometric patterns
 
 ## Images (CRITICAL)
-Include 3-6 HIGH-QUALITY images from Unsplash:
-https://source.unsplash.com/1200x800/?<relevant-keywords>
-
-For example: church, stained-glass, community for a church site.
+Include 3-6 images in your design. ALWAYS use Lorem Picsum — it always works:
+https://picsum.photos/1200/800?random=1
+https://picsum.photos/800/600?random=2
+https://picsum.photos/600/400?random=3
+Use different random=N numbers for different images.
 Use images as hero backgrounds, section images, gallery items.
 
 ## Output
