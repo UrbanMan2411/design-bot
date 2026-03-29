@@ -698,20 +698,29 @@ async def handle_reference_url(message: Message):
         # 4. Generate similar design with AI
         await status_msg.edit_text("🤖 Генерирую похожий дизайн...")
         
-        clone_prompt = f"""Analyze this website reference and create a SIMILAR but ORIGINAL design.
+        clone_prompt = f"""You are cloning the visual style of a reference website. Here is the FULL analysis:
 
-Reference URL: {url}
-Detected styles: {style_info}
+=== REFERENCE ANALYSIS ===
+URL: {url}
+{style_info}
 
-Create a landing page with:
-- Similar layout structure (hero, features, CTA, etc.)
-- Similar color scheme and typography style
-- Similar section arrangement
-- BUT with completely original content and images
-- Make it responsive (mobile + desktop)
+=== INSTRUCTIONS ===
+Create a NEW landing page that CLONES the visual style above.
+
+Requirements:
+- Use the SAME color palette (exact hex codes from analysis)
+- Use the SAME typography style (fonts from analysis)
+- Use the SAME layout structure (same sections in same order)
+- Use the SAME visual style (gradients, shadows, border-radius, etc.)
+- BUT completely ORIGINAL text content
+- Different images (use Unsplash)
+- Fully responsive (mobile 390px, tablet 768px, desktop 1280px)
+- Include SEO meta tags and favicon
 - Use Google Fonts
 
-Return ONLY a complete HTML file."""
+The result MUST look like it belongs to the same design family.
+
+Return ONLY a complete HTML file with inline CSS and JS."""
 
         raw_response = await generate_design(clone_prompt)
         html = extract_html(raw_response)
@@ -788,38 +797,73 @@ Return ONLY a complete HTML file."""
 
 
 def extract_style_info(html: str) -> str:
-    """Extract style information from HTML."""
-    info = []
-    
-    # Extract colors
-    colors = set(re.findall(r'#[0-9a-fA-F]{3,6}', html))
+    """Deep style analysis from HTML reference."""
+    lines = []
+
+    # Colors
+    color_set = set(re.findall(r'(?:background|color|border-color):\s*(#[0-9a-fA-F]{3,8})', html))
+    colors = list(color_set)[:10]
     if colors:
-        info.append(f"Colors: {', '.join(list(colors)[:5])}")
-    
-    # Extract fonts
-    fonts = set(re.findall(r"font-family:\s*['\"]?([^;'\"\},]+)", html))
+        lines.append(f"COLOR PALETTE:\n{', '.join(colors)}")
+
+    # Fonts
+    font_set = set()
+    for m in re.findall(r"font-family:\s*['\"]?([^;'\"\},]+)", html):
+        f = m.strip()
+        if 2 < len(f) < 50:
+            font_set.add(f)
+    fonts = list(font_set)[:5]
     if fonts:
-        info.append(f"Fonts: {', '.join(list(fonts)[:3])}")
-    
-    # Check sections
+        lines.append(f"FONTS:\n{', '.join(fonts)}")
+
+    # Layout structure
     sections = []
-    if '<header' in html.lower() or 'nav' in html.lower(): sections.append('header/nav')
-    if 'hero' in html.lower() or 'banner' in html.lower(): sections.append('hero')
-    if 'feature' in html.lower() or 'service' in html.lower(): sections.append('features')
-    if 'testimonial' in html.lower() or 'review' in html.lower(): sections.append('testimonials')
-    if 'pricing' in html.lower(): sections.append('pricing')
-    if 'footer' in html.lower(): sections.append('footer')
-    if 'gallery' in html.lower() or 'portfolio' in html.lower(): sections.append('gallery')
+    bt = html.lower()
+    if '<nav' in bt or 'header' in bt: sections.append('Navigation/Header')
+    if 'hero' in bt or 'banner' in bt: sections.append('Hero section with CTA')
+    if 'feature' in bt or 'service' in bt: sections.append('Features/Services grid')
+    if 'testimonial' in bt or 'review' in bt: sections.append('Testimonials')
+    if 'pricing' in bt or 'plan' in bt: sections.append('Pricing table')
+    if 'gallery' in bt or 'portfolio' in bt: sections.append('Gallery')
+    if 'about' in bt or 'team' in bt: sections.append('About/Team')
+    if 'contact' in bt or 'form' in bt: sections.append('Contact form')
+    if 'faq' in bt: sections.append('FAQ')
+    if 'footer' in bt: sections.append('Footer')
     if sections:
-        info.append(f"Sections: {', '.join(sections)}")
-    
-    # Check dark/light
-    if re.search(r'background:\s*#?[012][0123][0123]', html):
-        info.append("Theme: dark")
-    elif re.search(r'background:\s*#[fFfFfF]|[eEeEeE]|[dDdDdD]', html):
-        info.append("Theme: light")
-    
-    return "; ".join(info) if info else "modern landing page"
+        lines.append(f"LAYOUT (top to bottom):\n{' → '.join(sections)}")
+
+    # Visual style
+    styles = []
+    r_match = re.search(r'border-radius:\s*(\d+)px', html)
+    if r_match:
+        r = int(r_match.group(1))
+        styles.append(f"Rounded corners ({r}px)" if r > 10 else "Sharp corners")
+    if re.search(r'gradient', html, re.I): styles.append('Uses gradients')
+    if re.search(r'box-shadow', html, re.I): styles.append('Has shadows/depth')
+    if re.search(r'animation|@keyframes', html, re.I): styles.append('Animated')
+    if re.search(r'background:\s*#[012][012][012]', html, re.I): styles.append('Dark theme')
+    if re.search(r'background:\s*#[fF]{3,6}', html, re.I): styles.append('Light theme')
+    if re.search(r'backdrop-filter|blur', html, re.I): styles.append('Glassmorphism')
+    if re.search(r'uppercase', html, re.I): styles.append('Uppercase text')
+    if re.search(r'letter-spacing', html, re.I): styles.append('Letter-spacing')
+    if styles:
+        lines.append(f"VISUAL STYLE:\n{', '.join(styles)}")
+
+    # Headings
+    h1_match = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.I | re.S)
+    if h1_match:
+        h1_text = re.sub(r'<[^>]+>', '', h1_match.group(1)).strip()[:100]
+        lines.append(f"H1: {h1_text}")
+    h2s = [re.sub(r'<[^>]+>', '', h).strip()[:60] for h in re.findall(r'<h2[^>]*>(.*?)</h2>', html, re.I | re.S)[:5]]
+    if h2s:
+        lines.append(f"H2s: {' | '.join(h2s)}")
+
+    # CSS variables
+    css_vars = re.findall(r'--[a-z-]+:\s*[^;]+', html)[:10]
+    if css_vars:
+        lines.append(f"CSS VARIABLES:\n{'chr(10).join(css_vars)}")
+
+    return '\n\n'.join(lines) if lines else 'Standard modern landing page'
 
 
 @router.message(F.text & ~F.text.startswith("/"))
