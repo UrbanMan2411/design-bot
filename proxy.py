@@ -28,6 +28,22 @@ def generate():
     return jsonify(resp.json()), resp.status_code
 
 
+@app.route('/api/fetch-url', methods=['POST'])
+def fetch_url():
+    """Fetch a URL and return its HTML."""
+    data = request.json
+    url = data.get('url', '')
+    if not url.startswith('http'):
+        return jsonify({'error': 'Invalid URL'}), 400
+    try:
+        resp = requests.get(url, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        return jsonify({'html': resp.text[:100000], 'status': resp.status_code})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/publish', methods=['POST'])
 def publish():
     """Publish HTML to GitHub Pages."""
