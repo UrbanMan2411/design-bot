@@ -133,6 +133,16 @@ SYSTEM_PROMPT_TEMPLATE = """You are an expert frontend designer. Create distinct
 - Layout: Asymmetry, overlap, generous negative space
 - Backgrounds: Gradient meshes, noise textures, geometric patterns
 
+## Responsive Design (CRITICAL)
+The HTML MUST be fully responsive and mobile-first:
+- Use CSS media queries for breakpoints: 390px (mobile), 768px (tablet), 1280px (desktop)
+- Fluid typography: clamp() for font sizes
+- Flexible grids: CSS Grid or Flexbox with wrapping
+- Images: max-width: 100%, height: auto
+- Touch-friendly: buttons min 44px, links spaced apart
+- Hide/show elements per viewport if needed
+- Test: must look stunning on both iPhone and desktop
+
 ## Images (IMPORTANT)
 Use these EXACT image URLs in your design:
 {image_urls}
@@ -142,7 +152,7 @@ Use them as hero backgrounds, section images, gallery items. Mix wide (1200x800)
 ## Output
 Return ONLY a complete, self-contained HTML file with inline CSS and JS.
 Use Google Fonts links. Make it visually stunning and memorable.
-Make the design responsive (mobile-friendly)."""
+The design MUST work perfectly on mobile (390px) and desktop (1280px)."""
 
 
 def build_system_prompt(user_prompt: str) -> str:
