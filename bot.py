@@ -425,7 +425,6 @@ async def cmd_start(message: Message):
         "Опиши дизайн — получишь HTML + скриншот + ссылку.\n\n"
         "<b>Команды:</b>\n"
         "/styles — выбрать стиль перед генерацией\n"
-        "/model — сменить AI-модель\n"
         "/history — последние дизайны\n"
         "/stats — статистика\n"
         "/help — помощь",
@@ -494,15 +493,6 @@ async def cmd_stats(message: Message):
 
 
 # === Callbacks ===
-
-@router.callback_query(F.data.startswith("setmodel:"))
-async def cb_set_model(callback: CallbackQuery):
-    parts = callback.data.split(":", 2)
-    name, model = parts[1], parts[2]
-    user_models[callback.from_user.id] = model
-    await callback.answer(f"Модель: {name}")
-    await callback.message.edit_text(f"✅ Модель изменена на <code>{model}</code>", parse_mode="HTML")
-
 
 @router.callback_query(F.data.startswith("pickstyle:"))
 async def cb_pick_style(callback: CallbackQuery):
