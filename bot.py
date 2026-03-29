@@ -388,39 +388,42 @@ def get_user_limit(user_id: int) -> int:
 # === Keyboards ===
 
 def get_style_keyboard(prompt: str) -> InlineKeyboardMarkup:
+    # Max 64 bytes per callback_data. "gen:" + 25 chars + ":" + style = ~45 max
+    p = prompt[:25]
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌑 Минимализм", callback_data=f"gen:{prompt[:50]}:minimal dark"),
-            InlineKeyboardButton(text="🌈 Яркий", callback_data=f"gen:{prompt[:50]}:vibrant colorful"),
+            InlineKeyboardButton(text="🌑 Минимализм", callback_data=f"gen:{p}:dark"),
+            InlineKeyboardButton(text="🌈 Яркий", callback_data=f"gen:{p}:color"),
         ],
         [
-            InlineKeyboardButton(text="🏛 Премиум", callback_data=f"gen:{prompt[:50]}:luxury elegant"),
-            InlineKeyboardButton(text="🌿 Органик", callback_data=f"gen:{prompt[:50]}:organic natural"),
+            InlineKeyboardButton(text="🏛 Премиум", callback_data=f"gen:{p}:luxury"),
+            InlineKeyboardButton(text="🌿 Органик", callback_data=f"gen:{p}:organic"),
         ],
         [
-            InlineKeyboardButton(text="⚡ Ретро", callback_data=f"gen:{prompt[:50]}:retro 80s neon"),
-            InlineKeyboardButton(text="🔥 Брутализм", callback_data=f"gen:{prompt[:50]}:brutalist bold"),
+            InlineKeyboardButton(text="⚡ Ретро", callback_data=f"gen:{p}:retro"),
+            InlineKeyboardButton(text="🔥 Брутализм", callback_data=f"gen:{p}:brutal"),
         ],
         [
-            InlineKeyboardButton(text="✨ Свой выбор AI", callback_data=f"gen:{prompt[:50]}:"),
+            InlineKeyboardButton(text="✨ Свой выбор AI", callback_data=f"gen:{p}:"),
         ]
     ])
 
 
 def get_result_keyboard(prompt: str, filename: str = "") -> InlineKeyboardMarkup:
-    fn = filename[:20] if filename else prompt[:20]
+    fn = filename[:15] if filename else prompt[:15]
+    p = prompt[:25]
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🔄 Ещё вариант", callback_data=f"retry:{prompt[:35]}"),
-            InlineKeyboardButton(text="🎨 Стиль", callback_data=f"pickstyle:{prompt[:35]}"),
+            InlineKeyboardButton(text="🔄 Ещё", callback_data=f"retry:{p}"),
+            InlineKeyboardButton(text="🎨 Стиль", callback_data=f"pick:{p}"),
         ],
         [
-            InlineKeyboardButton(text="🔀 A/B тест", callback_data=f"ab:{prompt[:35]}"),
-            InlineKeyboardButton(text="📦 Скачать", callback_data=f"download:{fn}"),
+            InlineKeyboardButton(text="🔀 A/B", callback_data=f"ab:{p}"),
+            InlineKeyboardButton(text="📦 ZIP", callback_data=f"dl:{fn}"),
         ],
         [
             InlineKeyboardButton(text="👍", callback_data=f"like:{fn}"),
-            InlineKeyboardButton(text="👎", callback_data=f"dislike:{fn}"),
+            InlineKeyboardButton(text="👎", callback_data=f"no:{fn}"),
         ]
     ])
 
@@ -554,9 +557,9 @@ async def cmd_gallery(message: Message):
 
 # === Callbacks ===
 
-@router.callback_query(F.data.startswith("pickstyle:"))
+@router.callback_query(F.data.startswith("pick:"))
 async def cb_pick_style(callback: CallbackQuery):
-    prompt = callback.data[10:]
+    prompt = callback.data[5:]
     await callback.answer()
     await callback.message.answer(
         f"Выбери стиль для: <i>{prompt[:40]}...</i>",
@@ -574,7 +577,17 @@ async def cb_generate_with_style(callback: CallbackQuery):
         await callback.answer("Сначала напиши описание дизайна!", show_alert=True)
         return
     
-    full_prompt = f"{prompt}. Apply this style: {style}" if style else prompt
+    # Map short style names to full descriptions
+    style_map = {
+        "dark": "minimal dark elegant",
+        "color": "vibrant colorful energetic",
+        "luxury": "luxury premium elegant gold",
+        "organic": "organic natural earthy warm",
+        "retro": "retro 80s neon synthwave",
+        "brutal": "brutalist bold raw industrial",
+    }
+    full_style = style_map.get(style, style)
+    full_prompt = f"{prompt}. Style: {full_style}" if full_style else prompt
     await callback.answer("Генерирую...")
     await process_design(callback.message, callback.from_user.id, full_prompt, style=style)
 
@@ -598,9 +611,9 @@ async def cb_like(callback: CallbackQuery):
     await callback.answer("Дизайн не найден")
 
 
-@router.callback_query(F.data.startswith("dislike:"))
+@router.callback_query(F.data.startswith("no:"))
 async def cb_dislike(callback: CallbackQuery):
-    fn = callback.data[8:]
+    fn = callback.data[3:]
     for item in reversed(user_history.get(callback.from_user.id, [])):
         if fn in item["filename"]:
             user_feedback[item["filename"]] = "dislike"
@@ -621,9 +634,9 @@ async def cb_ab_test(callback: CallbackQuery):
         await asyncio.sleep(1)  # Small delay between generations
 
 
-@router.callback_query(F.data.startswith("download:"))
+@router.callback_query(F.data.startswith("dl:"))
 async def cb_download(callback: CallbackQuery):
-    fn = callback.data[9:]
+    fn = callback.data[3:]
     for item in reversed(user_history.get(callback.from_user.id, [])):
         if fn in item["filename"]:
             try:
@@ -759,7 +772,10 @@ async def process_design(target_msg: Message, user_id: int, user_prompt: str, st
 
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
-        await status_msg.edit_text(f"❌ Ошибка: {e}\n\nПопробуй ещё раз.")
+        try:
+            await status_msg.edit_text(f"❌ Ошибка: {e}\n\nПопробуй ещё раз.")
+        except Exception:
+            await target_msg.answer(f"❌ Ошибка: {e}\n\nПопробуй ещё раз.")
 
     finally:
         user_locks[user_id] = False
