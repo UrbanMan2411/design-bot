@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """
-Design Bot v3 — Telegram бот-дизайнер
+Design Bot v4 — Telegram бот-дизайнер
 Генерирует frontend-дизайны через AI и публикует на GitHub Pages.
 """
 
 import asyncio
+import io
 import json
 import logging
 import os
 import re
+import zipfile
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from html.parser import HTMLParser
 
 import aiohttp
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
+from aiogram.types import (
+    Message, CallbackQuery, FSInputFile, BufferedInputFile,
+    InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto,
+)
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 from github import Github, GithubException
@@ -35,10 +41,64 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 PAGES_BASE_URL = f"https://{GITHUB_REPO.split('/')[0]}.github.io/{GITHUB_REPO.split('/')[1]}"
+MAX_DESIGNS_PER_DAY = int(os.getenv("MAX_DESIGNS_PER_DAY", "20"))
 
 # === State ===
 user_locks: dict[int, bool] = defaultdict(bool)
-user_history: dict[int, list[dict]] = defaultdict(list)  # user_id -> [{prompt, url, filename, time}]
+user_history: dict[int, list[dict]] = defaultdict(list)
+user_models: dict[int, str] = defaultdict(lambda: OPENROUTER_MODEL)
+user_daily_count: dict[int, int] = defaultdict(int)
+last_reset: datetime = datetime.now()
+
+# === Available models ===
+AVAILABLE_MODELS = {
+    "claude": "kr/claude-haiku-4.5",
+    "gpt": "openrouter/openai/gpt-4.1-mini",
+    "gemini": "openrouter/google/gemini-2.5-flash-lite",
+    "qwen": "qwen/qwen3-coder-flash",
+    "deepseek": "openrouter/deepseek/deepseek-chat",
+}
+
+
+# === HTML Validator ===
+class HTMLValidator(HTMLParser):
+    """Basic HTML structure validator."""
+    def __init__(self):
+        super().__init__()
+        self.has_doctype = False
+        self.has_html = False
+        self.has_head = False
+        self.has_body = False
+        self.has_title = False
+        self.has_viewport = False
+        self.errors: list[str] = []
+
+    def handle_decl(self, decl):
+        if "DOCTYPE" in decl.upper():
+            self.has_doctype = True
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "html": self.has_html = True
+        elif tag == "head": self.has_head = True
+        elif tag == "body": self.has_body = True
+        elif tag == "title": self.has_title = True
+        elif tag == "meta":
+            for name, value in attrs:
+                if name == "name" and value == "viewport":
+                    self.has_viewport = True
+
+    def validate(self, html: str) -> list[str]:
+        self.errors = []
+        self.feed(html)
+        if not self.has_doctype: self.errors.append("Missing DOCTYPE")
+        if not self.has_html: self.errors.append("Missing <html> tag")
+        if not self.has_head: self.errors.append("Missing <head> tag")
+        if not self.has_body: self.errors.append("Missing <body> tag")
+        if not self.has_title: self.errors.append("Missing <title> tag")
+        if not self.has_viewport: self.errors.append("Missing viewport meta tag")
+        if "<img" in html and 'alt=' not in html: self.errors.append("Images missing alt attributes")
+        return self.errors
+
 
 # === Themed images (verified Unsplash photo IDs) ===
 THEME_IMAGES = {
@@ -98,19 +158,17 @@ THEME_IMAGES = {
 
 
 def get_theme_images(prompt: str, count: int = 4) -> list[str]:
-    """Get themed image URLs based on prompt keywords."""
     prompt_lower = prompt.lower()
     for pattern, photos in THEME_IMAGES.items():
         if re.search(pattern, prompt_lower):
             break
     else:
         photos = THEME_IMAGES["default"]
-
     urls = []
     for i, photo_id in enumerate(photos[:count]):
-        width = 1200 if i == 0 else 800
-        height = 800 if i == 0 else 600
-        urls.append(f"https://images.unsplash.com/photo-{photo_id}?w={width}&h={height}&fit=crop&q=80")
+        w = 1200 if i == 0 else 800
+        h = 800 if i == 0 else 600
+        urls.append(f"https://images.unsplash.com/photo-{photo_id}?w={w}&h={h}&fit=crop&q=80")
     return urls
 
 
@@ -130,29 +188,23 @@ SYSTEM_PROMPT_TEMPLATE = """You are an expert frontend designer. Create distinct
 - Backgrounds: Gradient meshes, noise textures, geometric patterns
 
 ## Responsive Design (CRITICAL)
-The HTML MUST be fully responsive and mobile-first:
-- Use CSS media queries for breakpoints: 390px (mobile), 768px (tablet), 1280px (desktop)
+- Breakpoints: 390px mobile, 768px tablet, 1280px desktop
 - Fluid typography: clamp() for font sizes
-- Flexible grids: CSS Grid or Flexbox with wrapping
+- Flexible grids: CSS Grid/Flexbox with wrapping
+- Touch-friendly: buttons min 44px, spaced links
 - Images: max-width: 100%, height: auto
-- Touch-friendly: buttons min 44px, links spaced apart
-- Hide/show elements per viewport if needed
-- Test: must look stunning on both iPhone and desktop
 
-## Images (IMPORTANT)
-Use these EXACT image URLs in your design:
+## Images
+Use these EXACT URLs:
 {image_urls}
-
-These are verified Unsplash URLs — they work. Use them as hero backgrounds, section images, gallery items.
 
 ## Output
 Return ONLY a complete, self-contained HTML file with inline CSS and JS.
-Use Google Fonts links. Make it visually stunning and memorable.
-The design MUST work perfectly on mobile (390px) and desktop (1280px)."""
+Use Google Fonts. Include viewport meta. Make all images have alt attributes.
+Make it stunning on mobile and desktop."""
 
 
 def build_system_prompt(user_prompt: str) -> str:
-    """Build system prompt with themed images."""
     images = get_theme_images(user_prompt, 4)
     image_list = "\n".join(f"- {url}" for url in images)
     return SYSTEM_PROMPT_TEMPLATE.format(image_urls=image_list)
@@ -161,7 +213,6 @@ def build_system_prompt(user_prompt: str) -> str:
 # === Core functions ===
 
 def extract_html(text: str) -> str:
-    """Extract HTML from AI response."""
     if not isinstance(text, str):
         text = str(text)
     match = re.search(r'```(?:html)?\s*\n(.*?)```', text, re.DOTALL)
@@ -182,14 +233,31 @@ def extract_html(text: str) -> str:
 </html>"""
 
 
+def fix_html_issues(html: str) -> str:
+    """Auto-fix common HTML issues."""
+    # Add viewport if missing
+    if 'viewport' not in html:
+        html = html.replace(
+            '<head>',
+            '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+            1
+        )
+    # Add charset if missing
+    if 'charset' not in html:
+        html = html.replace('<head>', '<head>\n<meta charset="UTF-8">', 1)
+    # Add alt to images without it
+    html = re.sub(r'<img(?![^>]*alt=)([^>]*)>', r'<img\1 alt="Image">', html)
+    return html
+
+
 async def generate_design(user_prompt: str) -> str:
-    """Call AI API to generate HTML design. Retries up to 3 times."""
     url = f"{OPENROUTER_BASE_URL}/chat/completions"
     headers = {"Content-Type": "application/json"}
     system_prompt = build_system_prompt(user_prompt)
+    model = user_models.get(None, OPENROUTER_MODEL)  # Will be overridden per-user
 
     payload = {
-        "model": OPENROUTER_MODEL,
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -206,7 +274,7 @@ async def generate_design(user_prompt: str) -> str:
                                         timeout=aiohttp.ClientTimeout(total=120)) as resp:
                     if resp.status != 200:
                         error = await resp.text()
-                        raise Exception(f"AI API error {resp.status}: {error}")
+                        raise Exception(f"API error {resp.status}: {error}")
                     data = await resp.json()
                     content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                     if not content:
@@ -216,65 +284,100 @@ async def generate_design(user_prompt: str) -> str:
             last_error = e
             logger.warning(f"Attempt {attempt+1}/3 failed: {e}")
             if attempt < 2:
-                await asyncio.sleep(2)
-
-    raise Exception(f"AI API failed after 3 attempts: {last_error}")
+                await asyncio.sleep(3)
+    raise Exception(f"API failed after 3 attempts: {last_error}")
 
 
 async def take_screenshots(html: str, filename: str) -> tuple[str | None, str | None]:
-    """Render HTML and take desktop + mobile screenshots."""
     desktop_path, mobile_path = None, None
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
-
-            # Desktop screenshot
             page = await browser.new_page(viewport={"width": 1280, "height": 720})
             await page.set_content(html, wait_until="networkidle", timeout=30000)
             desktop_path = f"/tmp/{filename}-desktop.png"
             await page.screenshot(path=desktop_path, full_page=True)
             await page.close()
-
-            # Mobile screenshot
             page = await browser.new_page(viewport={"width": 390, "height": 844})
             await page.set_content(html, wait_until="networkidle", timeout=30000)
             mobile_path = f"/tmp/{filename}-mobile.png"
             await page.screenshot(path=mobile_path, full_page=True)
             await page.close()
-
             await browser.close()
     except Exception as e:
         logger.error(f"Screenshot failed: {e}")
-
     return desktop_path, mobile_path
 
 
 def publish_to_github(html: str, filename: str) -> str:
-    """Push HTML to GitHub Pages. Returns public URL."""
     g = Github(GITHUB_TOKEN)
     repo = g.get_repo(GITHUB_REPO)
     path = f"designs/{filename}.html"
-
     try:
         contents = repo.get_contents(path, ref=GITHUB_BRANCH)
         repo.update_file(path, f"Update: {filename}", html, contents.sha, branch=GITHUB_BRANCH)
     except GithubException:
         repo.create_file(path, f"Add: {filename}", html, branch=GITHUB_BRANCH)
-
     return f"{PAGES_BASE_URL}/designs/{filename}.html"
+
+
+def create_zip(html: str, filename: str) -> bytes:
+    """Create a ZIP with HTML, CSS, JS extracted."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"{filename}/index.html", html)
+    return buf.getvalue()
+
+
+def check_rate_limit(user_id: int) -> bool:
+    """Check if user is within daily rate limit."""
+    global last_reset
+    now = datetime.now()
+    if (now - last_reset) > timedelta(days=1):
+        user_daily_count.clear()
+        last_reset = now
+    return user_daily_count[user_id] < MAX_DESIGNS_PER_DAY
 
 
 # === Keyboards ===
 
-def get_retry_keyboard(prompt: str) -> InlineKeyboardMarkup:
+def get_style_keyboard(prompt: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🔄 Ещё вариант", callback_data=f"retry:{prompt[:40]}"),
-            InlineKeyboardButton(text="🎨 Другой стиль", callback_data=f"style:{prompt[:40]}"),
+            InlineKeyboardButton(text="🌑 Минимализм", callback_data=f"gen:{prompt[:30]}:minimal dark"),
+            InlineKeyboardButton(text="🌈 Яркий", callback_data=f"gen:{prompt[:30]}:vibrant colorful"),
         ],
         [
-            InlineKeyboardButton(text="📱 Мобильная версия", callback_data=f"mobile:{prompt[:40]}"),
+            InlineKeyboardButton(text="🏛 Премиум", callback_data=f"gen:{prompt[:30]}:luxury elegant"),
+            InlineKeyboardButton(text="🌿 Органик", callback_data=f"gen:{prompt[:30]}:organic natural"),
+        ],
+        [
+            InlineKeyboardButton(text="⚡ Ретро", callback_data=f"gen:{prompt[:30]}:retro 80s neon"),
+            InlineKeyboardButton(text="🔥 Брутализм", callback_data=f"gen:{prompt[:30]}:brutalist bold"),
+        ],
+        [
+            InlineKeyboardButton(text="✨ Без стиля", callback_data=f"gen:{prompt[:30]}:"),
         ]
+    ])
+
+
+def get_result_keyboard(prompt: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🔄 Ещё вариант", callback_data=f"retry:{prompt[:35]}"),
+            InlineKeyboardButton(text="🎨 Стиль", callback_data=f"pickstyle:{prompt[:35]}"),
+        ],
+        [
+            InlineKeyboardButton(text="📦 Скачать HTML", callback_data=f"download:{prompt[:35]}"),
+        ]
+    ])
+
+
+def get_model_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"{'✅ ' if user_models.get(None) == m else ''}{name}",
+                              callback_data=f"setmodel:{name}:{m}")]
+        for name, m in AVAILABLE_MODELS.items()
     ])
 
 
@@ -285,14 +388,14 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     await message.answer(
-        "🎨 <b>Design Bot v3</b>\n\n"
+        "🎨 <b>Design Bot v4</b>\n\n"
         "Опиши дизайн — получишь HTML + скриншот + ссылку.\n\n"
-        "<b>Примеры:</b>\n"
-        "• Лендинг для кофейни, ретро стиль\n"
-        "• Портфолио фотографа, минимализм\n"
-        "• Сайт церкви «Высшее призвание»\n"
-        "• Карточка SaaS для AI-стартапа\n\n"
-        "Команды: /history /help",
+        "<b>Команды:</b>\n"
+        "/styles — выбрать стиль перед генерацией\n"
+        "/model — сменить AI-модель\n"
+        "/history — последние дизайны\n"
+        "/stats — статистика\n"
+        "/help — помощь",
         parse_mode="HTML",
     )
 
@@ -301,14 +404,32 @@ async def cmd_start(message: Message):
 async def cmd_help(message: Message):
     await message.answer(
         "<b>Как пользоваться:</b>\n\n"
-        "1️⃣ Напиши описание дизайна\n"
-        "2️⃣ Получишь скриншот + ссылку\n\n"
-        "🔄 Ещё вариант — новая генерация\n"
-        "🎨 Другой стиль — изменить стиль\n"
-        "📱 Мобильная версия — превью на телефоне\n\n"
-        "/history — последние дизайны",
+        "1️⃣ Напиши что за сайт нужен\n"
+        "2️⃣ Выбери стиль (или пропусти)\n"
+        "3️⃣ Получишь скриншот + ссылку\n\n"
+        "<b>Кнопки под результатом:</b>\n"
+        "🔄 — новый вариант\n"
+        "🎨 — сменить стиль\n"
+        "📦 — скачать HTML\n\n"
+        f"Лимит: {MAX_DESIGNS_PER_DAY} дизайнов в день",
         parse_mode="HTML",
     )
+
+
+@router.message(Command("styles"))
+async def cmd_styles(message: Message):
+    await message.answer(
+        "Выбери стиль для следующего дизайна:\n\n"
+        "Или просто напиши описание — выберешь стиль после.",
+        reply_markup=get_style_keyboard("placeholder"),
+    )
+
+
+@router.message(Command("model"))
+async def cmd_model(message: Message):
+    current = user_models.get(message.from_user.id, OPENROUTER_MODEL)
+    text = f"<b>Текущая модель:</b> <code>{current}</code>\n\nВыбери другую:"
+    await message.answer(text, parse_mode="HTML", reply_markup=get_model_keyboard())
 
 
 @router.message(Command("history"))
@@ -317,13 +438,57 @@ async def cmd_history(message: Message):
     if not history:
         await message.answer("История пуста. Сгенерируй первый дизайн!")
         return
-
     text = "<b>📋 Последние дизайны:</b>\n\n"
     for i, item in enumerate(reversed(history[-10:]), 1):
-        time_str = item["time"].strftime("%H:%M")
-        text += f"{i}. <i>{item['prompt'][:50]}</i>\n   🔗 <a href=\"{item['url']}\">Открыть</a> • {time_str}\n\n"
-
+        t = item["time"].strftime("%H:%M")
+        text += f"{i}. <i>{item['prompt'][:45]}</i>\n   🔗 <a href=\"{item['url']}\">{item['style'] if item.get('style') else 'default'}</a> • {t}\n\n"
     await message.answer(text, parse_mode="HTML")
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    uid = message.from_user.id
+    total = len(user_history.get(uid, []))
+    today = user_daily_count.get(uid, 0)
+    model = user_models.get(uid, OPENROUTER_MODEL)
+    text = (
+        f"<b>📊 Статистика</b>\n\n"
+        f"Всего дизайнов: <b>{total}</b>\n"
+        f"Сегодня: <b>{today}/{MAX_DESIGNS_PER_DAY}</b>\n"
+        f"Модель: <code>{model}</code>"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+
+# === Callbacks ===
+
+@router.callback_query(F.data.startswith("setmodel:"))
+async def cb_set_model(callback: CallbackQuery):
+    parts = callback.data.split(":", 2)
+    name, model = parts[1], parts[2]
+    user_models[callback.from_user.id] = model
+    await callback.answer(f"Модель: {name}")
+    await callback.message.edit_text(f"✅ Модель изменена на <code>{model}</code>", parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("pickstyle:"))
+async def cb_pick_style(callback: CallbackQuery):
+    prompt = callback.data[10:]
+    await callback.answer()
+    await callback.message.answer(
+        f"Выбери стиль для: <i>{prompt[:40]}...</i>",
+        parse_mode="HTML",
+        reply_markup=get_style_keyboard(prompt),
+    )
+
+
+@router.callback_query(F.data.startswith("gen:"))
+async def cb_generate_with_style(callback: CallbackQuery):
+    parts = callback.data.split(":", 2)
+    prompt, style = parts[1], parts[2]
+    full_prompt = f"{prompt}\nStyle: {style}" if style else prompt
+    await callback.answer("Генерирую...")
+    await process_design(callback.message, callback.from_user.id, full_prompt, style=style)
 
 
 @router.callback_query(F.data.startswith("retry:"))
@@ -333,31 +498,49 @@ async def cb_retry(callback: CallbackQuery):
     await process_design(callback.message, callback.from_user.id, prompt)
 
 
-@router.callback_query(F.data.startswith("style:"))
-async def cb_style(callback: CallbackQuery):
-    prompt = callback.data[6:]
-    await callback.answer()
-    await callback.message.answer(
-        f"Опиши стиль для: <i>{prompt[:50]}</i>\n\n"
-        "Например: тёмный минимализм, неоновый ретро, природный organic",
-        parse_mode="HTML",
-    )
+@router.callback_query(F.data.startswith("download:"))
+async def cb_download(callback: CallbackQuery):
+    prompt = callback.data[9:]
+    history = user_history.get(callback.from_user.id, [])
+    # Find latest matching design
+    for item in reversed(history):
+        if prompt[:30] in item["prompt"]:
+            zip_data = create_zip("", item["filename"])
+            # Re-fetch HTML from GitHub
+            try:
+                g = Github(GITHUB_TOKEN)
+                repo = g.get_repo(GITHUB_REPO)
+                file = repo.get_contents(f"designs/{item['filename']}.html", ref=GITHUB_BRANCH)
+                html = file.decoded_content.decode()
+                zip_data = create_zip(html, item["filename"])
+                await callback.message.answer_document(
+                    BufferedInputFile(zip_data, filename=f"{item['filename']}.zip"),
+                    caption=f"📦 <b>{item['filename']}</b>",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                await callback.answer(f"Ошибка: {e}")
+            return
+    await callback.answer("Дизайн не найден в истории")
 
 
-@router.callback_query(F.data.startswith("mobile:"))
-async def cb_mobile(callback: CallbackQuery):
-    await callback.answer("Мобильная версия в следующей генерации будет отдельным скриншотом")
-
+# === Main handler ===
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_design_request(message: Message):
     await process_design(message, message.from_user.id, message.text.strip())
 
 
-async def process_design(target_msg: Message, user_id: int, user_prompt: str):
-    """Main design generation pipeline."""
-    if len(user_prompt) < 5:
+async def process_design(target_msg: Message, user_id: int, user_prompt: str, style: str = ""):
+    if len(user_prompt) < 3:
         await target_msg.answer("Опиши подробнее, что за дизайн нужен 🤔")
+        return
+
+    if not check_rate_limit(user_id):
+        await target_msg.answer(
+            f"⚠️ Достигнут дневной лимит ({MAX_DESIGNS_PER_DAY} дизайнов).\n"
+            "Попробуй завтра или используй /model для смены модели."
+        )
         return
 
     if user_locks[user_id]:
@@ -365,76 +548,81 @@ async def process_design(target_msg: Message, user_id: int, user_prompt: str):
         return
 
     user_locks[user_id] = True
+    start_time = datetime.now()
     status_msg = await target_msg.answer("⏳ Генерирую дизайн...")
 
     try:
-        # 1. Generate HTML
-        await status_msg.edit_text("🤖 AI думает над дизайном...")
+        # 1. Generate
+        await status_msg.edit_text("🤖 AI создаёт дизайн...")
         raw_response = await generate_design(user_prompt)
         html = extract_html(raw_response)
+        html = fix_html_issues(html)
 
-        # 2. Filename
+        # 2. Validate
+        validator = HTMLValidator()
+        issues = validator.validate(html)
+        if issues:
+            logger.warning(f"HTML issues: {issues}")
+
+        # 3. Screenshot
         slug = re.sub(r'[^a-z0-9]+', '-', user_prompt.lower())[:40].strip('-')
         uid = uuid.uuid4().hex[:6]
         filename = f"{slug}-{uid}"
-
-        # 3. Screenshots (desktop + mobile)
-        await status_msg.edit_text("📸 Делаю превью (desktop + mobile)...")
+        await status_msg.edit_text("📸 Делаю превью...")
         desktop_path, mobile_path = await take_screenshots(html, filename)
 
-        # 4. Publish to GitHub
+        # 4. Publish
         await status_msg.edit_text("📤 Публикую...")
         url = await asyncio.to_thread(publish_to_github, html, filename)
 
-        # 5. Save to history
+        # 5. Track
+        elapsed = (datetime.now() - start_time).total_seconds()
+        user_daily_count[user_id] += 1
         user_history[user_id].append({
             "prompt": user_prompt,
             "url": url,
             "filename": filename,
+            "style": style or "auto",
             "time": datetime.now(),
+            "model": user_models.get(user_id, OPENROUTER_MODEL),
         })
 
-        # 6. Send result
+        # 6. Send
         await status_msg.delete()
-        keyboard = get_retry_keyboard(user_prompt)
+        keyboard = get_result_keyboard(user_prompt)
+        remaining = MAX_DESIGNS_PER_DAY - user_daily_count[user_id]
+        caption = (
+            f"✅ <b>Готово!</b> ({elapsed:.0f}с)\n\n"
+            f"🔗 <a href=\"{url}\">Открыть сайт</a>\n"
+            f"🎨 Стиль: {style or 'auto'}\n"
+            f"📊 Осталось сегодня: {remaining}"
+        )
 
         has_desktop = desktop_path and os.path.exists(desktop_path)
         has_mobile = mobile_path and os.path.exists(mobile_path)
 
         if has_desktop and has_mobile:
-            # Send as media group (desktop + mobile)
             media = [
-                InputMediaPhoto(media=FSInputFile(desktop_path), caption=(
-                    f"✅ <b>Готово!</b>\n\n"
-                    f"🔗 <a href=\"{url}\">Открыть сайт</a>\n"
-                    f"📐 Desktop (1280px) + Mobile (390px)"
-                ), parse_mode="HTML"),
+                InputMediaPhoto(media=FSInputFile(desktop_path), caption=caption, parse_mode="HTML"),
                 InputMediaPhoto(media=FSInputFile(mobile_path)),
             ]
             await target_msg.answer_media_group(media)
             await target_msg.answer("Действия:", reply_markup=keyboard)
         elif has_desktop:
             await target_msg.answer_photo(
-                photo=FSInputFile(desktop_path),
-                caption=f"✅ <b>Готово!</b>\n\n🔗 <a href=\"{url}\">Открыть сайт</a>",
-                parse_mode="HTML",
-                reply_markup=keyboard,
+                photo=FSInputFile(desktop_path), caption=caption,
+                parse_mode="HTML", reply_markup=keyboard,
             )
         else:
-            await target_msg.answer(
-                f"✅ <b>Готово!</b>\n\n🔗 <a href=\"{url}\">Открыть сайт</a>",
-                parse_mode="HTML",
-                reply_markup=keyboard,
-            )
+            await target_msg.answer(caption, parse_mode="HTML", reply_markup=keyboard)
 
-        # Cleanup
         for path in [desktop_path, mobile_path]:
             if path and os.path.exists(path):
                 os.remove(path)
 
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
-        await status_msg.edit_text(f"❌ Ошибка: {e}")
+        await status_msg.edit_text(f"❌ Ошибка: {e}\n\nПопробуй ещё раз или /model для смены модели.")
 
     finally:
         user_locks[user_id] = False
@@ -455,7 +643,7 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
-    print("🤖 Design Bot v3 started!")
+    print("🤖 Design Bot v4 started!")
     await dp.start_polling(bot)
 
 
