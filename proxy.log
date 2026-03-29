@@ -5,8 +5,3 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8080
  * Running on http://82.24.110.51:8080
 Press CTRL+C to quit
-127.0.0.1 - - [29/Mar/2026 19:22:51] "GET / HTTP/1.1" 200 -
-82.24.110.51 - - [29/Mar/2026 19:24:10] "GET / HTTP/1.1" 200 -
-82.24.110.51 - - [29/Mar/2026 19:26:37] "POST /api/fetch-url HTTP/1.1" 200 -
-82.24.110.51 - - [29/Mar/2026 19:26:40] "POST /api/generate HTTP/1.1" 200 -
-82.24.110.51 - - [29/Mar/2026 19:26:41] "POST /api/publish HTTP/1.1" 201 -

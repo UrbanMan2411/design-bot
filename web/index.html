@@ -642,7 +642,6 @@ Return ONLY a complete HTML file with inline CSS/JS. Make it stunning.`;
             status.textContent = 'Анализирую референс...';
 
             try {
-                // 1. Fetch reference page
                 fill.style.width = '20%';
                 status.textContent = 'Скачиваю страницу...';
 
@@ -654,32 +653,38 @@ Return ONLY a complete HTML file with inline CSS/JS. Make it stunning.`;
                 const fetchData = await fetchResp.json();
                 const refHTML = fetchData.html || '';
 
-                // 2. Analyze styles
                 fill.style.width = '40%';
-                status.textContent = 'Анализирую стили...';
+                status.textContent = 'Анализирую стили и структуру...';
 
-                const styleInfo = extractStyles(refHTML);
+                const analysis = analyzeReference(refHTML);
 
-                // 3. Generate similar design
                 fill.style.width = '50%';
                 status.textContent = 'Генерирую похожий дизайн...';
 
-                const clonePrompt = `Analyze this website and create a SIMILAR but ORIGINAL design.
+                const clonePrompt = `You are cloning the visual style of a reference website. Here is the FULL analysis:
 
-Reference URL: ${url}
-Detected styles: ${styleInfo}
-${notes ? `User requests: ${notes}` : ''}
+=== REFERENCE ANALYSIS ===
+URL: ${url}
+${analysis}
 
-Create a landing page with:
-- Similar layout structure (hero, features, CTA, etc.)
-- Similar color scheme and typography style
-- Similar section arrangement
-- BUT completely original content and images
-- Responsive (mobile + desktop)
-- Google Fonts
-- Include SEO meta tags
+${notes ? '=== USER REQUESTS ===\n' + notes + '\n' : ''}
+=== INSTRUCTIONS ===
+Create a NEW landing page that CLONES the visual style above.
 
-Return ONLY a complete HTML file.`;
+Requirements:
+- Use the SAME color palette (exact hex codes from analysis)
+- Use the SAME typography style (fonts from analysis)
+- Use the SAME layout structure (same sections in same order)
+- Use the SAME visual style (gradients, shadows, border-radius, etc.)
+- BUT completely ORIGINAL text content
+- Different images (use Unsplash)
+- Fully responsive (mobile 390px, tablet 768px, desktop 1280px)
+- Include SEO meta tags and favicon
+- Use Google Fonts
+
+The result MUST look like it belongs to the same design family.
+
+Return ONLY a complete HTML file with inline CSS and JS.`;
 
                 const resp = await fetch(`${API_BASE}/api/generate`, {
                     method: 'POST',
@@ -746,25 +751,69 @@ Return ONLY a complete HTML file.`;
             }
         }
 
-        function extractStyles(html) {
-            const info = [];
-            const colors = new Set((html.match(/#[0-9a-fA-F]{3,6}/g) || []).slice(0, 5));
-            if (colors.size) info.push(`Colors: ${[...colors].join(', ')}`);
+        function analyzeReference(html) {
+            const lines = [];
             
-            const fonts = new Set((html.match(/font-family:\s*['"]?([^;'"},]+)/g) || []).slice(0, 3));
-            if (fonts.size) info.push(`Fonts: ${[...fonts].join(', ')}`);
-            
+            // Colors
+            const colorSet = new Set();
+            (html.match(/(?:background|color|border-color):\s*(#[0-9a-fA-F]{3,8})/g) || []).forEach(m => {
+                const c = m.match(/#[0-9a-fA-F]{3,8}/);
+                if (c) colorSet.add(c[0].toLowerCase());
+            });
+            const colors = [...colorSet].slice(0, 10);
+            if (colors.length) lines.push('COLOR PALETTE:\n' + colors.join(', '));
+
+            // Fonts
+            const fontSet = new Set();
+            (html.match(/font-family:\s*['"]?([^;'"},]+)/g) || []).forEach(m => {
+                const f = m.replace(/font-family:\s*['"]?/, '').trim();
+                if (f.length > 2 && f.length < 50) fontSet.add(f);
+            });
+            const fonts = [...fontSet].slice(0, 5);
+            if (fonts.length) lines.push('FONTS:\n' + fonts.join(', '));
+
+            // Layout structure
             const sections = [];
-            if (/<header|nav/i.test(html)) sections.push('header');
-            if (/hero|banner/i.test(html)) sections.push('hero');
-            if (/feature|service/i.test(html)) sections.push('features');
-            if (/testimonial|review/i.test(html)) sections.push('testimonials');
-            if (/pricing/i.test(html)) sections.push('pricing');
-            if (/gallery|portfolio/i.test(html)) sections.push('gallery');
-            if (/footer/i.test(html)) sections.push('footer');
-            if (sections.length) info.push(`Sections: ${sections.join(', ')}`);
-            
-            return info.join('; ') || 'modern landing page';
+            const bt = html.toLowerCase();
+            if (bt.includes('<nav') || bt.includes('header')) sections.push('Navigation/Header');
+            if (bt.includes('hero') || bt.includes('banner')) sections.push('Hero section with CTA');
+            if (bt.includes('feature') || bt.includes('service')) sections.push('Features/Services grid');
+            if (bt.includes('testimonial') || bt.includes('review')) sections.push('Testimonials');
+            if (bt.includes('pricing') || bt.includes('plan')) sections.push('Pricing table');
+            if (bt.includes('gallery') || bt.includes('portfolio')) sections.push('Gallery');
+            if (bt.includes('about') || bt.includes('team')) sections.push('About/Team');
+            if (bt.includes('contact') || bt.includes('form')) sections.push('Contact form');
+            if (bt.includes('faq')) sections.push('FAQ');
+            if (bt.includes('footer')) sections.push('Footer');
+            if (sections.length) lines.push('LAYOUT (top to bottom):\n' + sections.join(' → '));
+
+            // Visual style
+            const styles = [];
+            if (/border-radius:\s*(\d+)px/.test(html)) {
+                const r = parseInt(html.match(/border-radius:\s*(\d+)px/)[1]);
+                styles.push(r > 10 ? 'Rounded corners (' + r + 'px)' : 'Sharp corners');
+            }
+            if (/gradient/i.test(html)) styles.push('Uses gradients');
+            if (/box-shadow/i.test(html)) styles.push('Has shadows/depth');
+            if (/animation|@keyframes/i.test(html)) styles.push('Animated');
+            if (/background:\s*#[012][012][012]/i.test(html)) styles.push('Dark theme');
+            if (/background:\s*#[fF][fF][fF]/i.test(html)) styles.push('Light theme');
+            if (/backdrop-filter|blur/i.test(html)) styles.push('Glassmorphism');
+            if (/uppercase/i.test(html)) styles.push('Uppercase text');
+            if (/letter-spacing/i.test(html)) styles.push('Letter-spacing');
+            if (styles.length) lines.push('VISUAL STYLE:\n' + styles.join(', '));
+
+            // Headings
+            const h1 = (html.match(/<h1[^>]*>(.*?)<\/h1>/i) || [])[1];
+            const h2s = (html.match(/<h2[^>]*>(.*?)<\/h2>/ig) || []).map(h => h.replace(/<[^>]+>/g, '')).slice(0, 5);
+            if (h1) lines.push('H1: ' + h1.replace(/<[^>]+>/g, '').slice(0, 100));
+            if (h2s.length) lines.push('H2s: ' + h2s.join(' | '));
+
+            // CSS vars
+            const cssVars = (html.match(/--[a-z-]+:\s*[^;]+/g) || []).slice(0, 10);
+            if (cssVars.length) lines.push('CSS VARIABLES:\n' + cssVars.join('\n'));
+
+            return lines.join('\n\n') || 'Standard modern landing page';
         }
 
         async function generate() {
