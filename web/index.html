@@ -661,30 +661,28 @@ Return ONLY a complete HTML file with inline CSS/JS. Make it stunning.`;
                 fill.style.width = '50%';
                 status.textContent = 'Генерирую похожий дизайн...';
 
-                const clonePrompt = `You are cloning the visual style of a reference website. Here is the FULL analysis:
+                const clonePrompt = `You are a frontend designer creating a website INSPIRED by a reference design.
 
-=== REFERENCE ANALYSIS ===
+=== STYLE ANALYSIS ===
 URL: ${url}
 ${analysis}
 
-${notes ? '=== USER REQUESTS ===\n' + notes + '\n' : ''}
-=== INSTRUCTIONS ===
-Create a NEW landing page that CLONES the visual style above.
+${notes ? '=== USER WANTS ===\n' + notes + '\n' : ''}
+=== YOUR TASK ===
+Create a NEW, ORIGINAL landing page INSPIRED by the style analysis above. This is NOT copying — it is creative adaptation.
 
-Requirements:
-- Use the SAME color palette (exact hex codes from analysis)
-- Use the SAME typography style (fonts from analysis)
-- Use the SAME layout structure (same sections in same order)
-- Use the SAME visual style (gradients, shadows, border-radius, etc.)
-- BUT completely ORIGINAL text content
-- Different images (use Unsplash)
-- Fully responsive (mobile 390px, tablet 768px, desktop 1280px)
-- Include SEO meta tags and favicon
-- Use Google Fonts
-
-The result MUST look like it belongs to the same design family.
+Rules:
+- Be INSPIRED by the colors — adapt them creatively
+- Be INSPIRED by the fonts — use similar pairings
+- Be INSPIRED by the layout — reorganize and improve
+- Apply similar visual effects (gradients, shadows, animations)
+- 100% ORIGINAL text and content
+- DIFFERENT Unsplash images
+- Responsive (mobile 390px, tablet 768px, desktop 1280px)
+- SEO meta tags, favicon, Google Fonts
 
 Return ONLY a complete HTML file with inline CSS and JS.`;
+
 
                 const resp = await fetch(`${API_BASE}/api/generate`, {
                     method: 'POST',

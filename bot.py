@@ -698,27 +698,27 @@ async def handle_reference_url(message: Message):
         # 4. Generate similar design with AI
         await status_msg.edit_text("🤖 Генерирую похожий дизайн...")
         
-        clone_prompt = f"""You are cloning the visual style of a reference website. Here is the FULL analysis:
+        clone_prompt = f"""You are a frontend designer creating a new website INSPIRED by a reference design. Here is the style analysis:
 
-=== REFERENCE ANALYSIS ===
+=== DESIGN INSPIRATION SOURCE ===
 URL: {url}
 {style_info}
 
-=== INSTRUCTIONS ===
-Create a NEW landing page that CLONES the visual style above.
+=== YOUR TASK ===
+Create a completely NEW, ORIGINAL landing page that is INSPIRED by the design patterns above. You are NOT copying — you are creating something fresh that uses similar design principles.
 
-Requirements:
-- Use the SAME color palette (exact hex codes from analysis)
-- Use the SAME typography style (fonts from analysis)
-- Use the SAME layout structure (same sections in same order)
-- Use the SAME visual style (gradients, shadows, border-radius, etc.)
-- BUT completely ORIGINAL text content
-- Different images (use Unsplash)
-- Fully responsive (mobile 390px, tablet 768px, desktop 1280px)
+Guidelines for your original creation:
+- Draw INSPIRATION from the color palette — adapt and evolve it
+- Be INSPIRED by the typography choices — use similar font pairings
+- Take INSPIRATION from the layout — reorganize and improve it
+- Be INSPIRED by the visual effects — apply similar techniques
+- Create 100% ORIGINAL text content
+- Use DIFFERENT Unsplash images
+- Make it fully responsive (mobile 390px, tablet 768px, desktop 1280px)
 - Include SEO meta tags and favicon
 - Use Google Fonts
 
-The result MUST look like it belongs to the same design family.
+Be creative! The result should feel like a natural evolution of the inspiration, not a copy.
 
 Return ONLY a complete HTML file with inline CSS and JS."""
 
