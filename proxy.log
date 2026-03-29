@@ -2,3 +2,34 @@
  * Debug mode: off
 Address already in use
 Port 8080 is in use by another program. Either identify and stop that program, or start the server with a different port.
+ * Serving Flask app 'proxy'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://82.24.110.51:8080
+Press CTRL+C to quit
+127.0.0.1 - - [29/Mar/2026 20:15:45] "GET / HTTP/1.1" 200 -
+82.24.110.51 - - [29/Mar/2026 20:20:44] "GET / HTTP/1.1" 200 -
+45.33.109.8 - - [29/Mar/2026 20:32:39] "GET / HTTP/1.1" 200 -
+66.228.53.162 - - [29/Mar/2026 20:41:04] "GET / HTTP/1.1" 200 -
+45.156.87.188 - - [29/Mar/2026 21:07:46] "GET /login HTTP/1.1" 404 -
+198.235.24.225 - - [29/Mar/2026 21:16:39] "GET / HTTP/1.0" 200 -
+20.163.38.129 - - [29/Mar/2026 21:25:24] "GET / HTTP/1.1" 200 -
+20.163.38.129 - - [29/Mar/2026 21:25:25] code 400, message Bad request syntax ('MGLNDD_82.24.110.51_8080')
+20.163.38.129 - - [29/Mar/2026 21:25:25] "MGLNDD_82.24.110.51_8080" HTTPStatus.BAD_REQUEST -
+66.132.172.105 - - [29/Mar/2026 21:43:10] "GET / HTTP/1.1" 200 -
+66.132.172.105 - - [29/Mar/2026 21:43:16] code 400, message Bad request version ('À\x14À')
+66.132.172.105 - - [29/Mar/2026 21:43:16] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03#ù\x8d\x97ì<)\x9cy l¬?ñ³\x07\x9c\x05ôË\x98;'þl(¡æ\x82"pª \x864\x0b³¿1ãõõ\x16\x1a¡\x19ìçï\x96\x86Q § \x91Ù\\\x1e\x89¦;\x1d\x897\x00&Ì¨Ì©À/À0À+À,À\x13À\x09À\x14À" HTTPStatus.BAD_REQUEST -
+66.132.172.105 - - [29/Mar/2026 21:43:16] "GET / HTTP/1.1" 200 -
+66.132.172.105 - - [29/Mar/2026 21:43:17] code 505, message Invalid HTTP version (2.0)
+66.132.172.105 - - [29/Mar/2026 21:43:17] "PRI * HTTP/2.0" HTTPStatus.HTTP_VERSION_NOT_SUPPORTED -
+66.132.172.105 - - [29/Mar/2026 21:43:17] "GET /favicon.ico HTTP/1.1" 404 -
+66.132.172.105 - - [29/Mar/2026 21:43:23] code 400, message Bad request version ('À\x14À')
+66.132.172.105 - - [29/Mar/2026 21:43:23] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03<MØ×9¢jkÿ7|\x9aà\x1eÂ§\x98Éq)G'y\x85\x8bò\x96\x9fÁjß\x90 aÍ/wìí\x83\x13ÅÐxÊ\x03\x98¿J\x0ec\x0doÑt:Í5\x99r\x9a[j8*\x00&Ì¨Ì©À/À0À+À,À\x13À\x09À\x14À" HTTPStatus.BAD_REQUEST -
+66.132.172.105 - - [29/Mar/2026 21:43:24] "GET /security.txt HTTP/1.1" 404 -
+172.236.228.208 - - [29/Mar/2026 22:05:33] "GET / HTTP/1.1" 200 -
+185.208.158.91 - - [29/Mar/2026 22:07:40] "GET /login HTTP/1.1" 404 -
+172.104.210.105 - - [29/Mar/2026 22:32:43] "GET / HTTP/1.1" 200 -
+172.236.228.227 - - [29/Mar/2026 23:25:42] "GET / HTTP/1.1" 200 -
+103.77.242.176 - - [29/Mar/2026 23:26:48] "GET / HTTP/1.0" 200 -
