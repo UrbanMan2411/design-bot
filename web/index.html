@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LandingAI — Генератор лендингов</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0c0a09;
+            --bg-card: #1c1917;
+            --bg-input: #292524;
+            --accent: #f59e0b;
+            --accent-glow: rgba(245, 158, 11, 0.15);
+            --text: #fafaf9;
+            --text-muted: #a8a29e;
+            --text-dim: #78716c;
+            --border: #44403c;
+            --success: #22c55e;
+            --error: #ef4444;
+            --radius: 16px;
+            --radius-sm: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background grain */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Hero gradient */
+        .hero-glow {
+            position: fixed;
+            top: -30%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+            50% { opacity: 0.8; transform: translateX(-50%) scale(1.1); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), #f97316);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+
+        .logo-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 500px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Input area */
+        .input-section {
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .input-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-label {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1rem;
+            padding: 1rem;
+            resize: vertical;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        /* Style chips */
+        .styles-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .chip {
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            user-select: none;
+        }
+
+        .chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg);
+            font-weight: 500;
+        }
+
+        /* Generate button */
+        .generate-btn {
+            width: 100%;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, var(--accent), #f97316);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(245, 158, 11, 0.3);
+        }
+
+        .generate-btn:active {
+            transform: translateY(0);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .generate-btn .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: var(--bg);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .generate-btn.loading .spinner { display: inline-block; }
+        .generate-btn.loading .btn-text { opacity: 0.8; }
+
+        /* Progress */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-input);
+            border-radius: 2px;
+            margin-top: 1rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar.active { display: block; }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), #f97316);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .status-text {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        /* Result section */
+        .result-section {
+            display: none;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .result-section.visible { display: block; }
+
+        .result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .result-header h3 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .result-iframe-wrapper {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: #1a1a1a;
+        }
+
+        .result-iframe-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .result-meta {
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .result-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        .result-link:hover { text-decoration: underline; }
+
+        /* Mobile preview toggle */
+        .preview-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .preview-toggle button {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preview-toggle button.active {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 0 2rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container { padding: 1rem; }
+            .logo-text { font-size: 1.5rem; }
+            .input-card { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-glow"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🎨</div>
+                <span class="logo-text">LandingAI</span>
+            </div>
+            <p>Опиши дизайн — получи готовый лендинг за секунды</p>
+        </header>
+
+        <div class="input-section">
+            <div class="input-card">
+                <label class="input-label">Что за сайт нужен?</label>
+                <textarea id="prompt" placeholder="Например: Лендинг для кофейни в стиле ретро, с меню, отзывами и формой бронирования..."></textarea>
+                
+                <div class="styles-row">
+                    <button class="chip" data-style="minimal dark elegant">🌑 Минимализм</button>
+                    <button class="chip" data-style="vibrant colorful energetic">🌈 Яркий</button>
+                    <button class="chip" data-style="luxury premium elegant gold">🏛 Премиум</button>
+                    <button class="chip" data-style="organic natural earthy warm">🌿 Органик</button>
+                    <button class="chip" data-style="retro 80s neon synthwave">⚡ Ретро</button>
+                    <button class="chip" data-style="brutalist bold raw industrial">🔥 Брутализм</button>
+                </div>
+
+                <button class="generate-btn" id="generateBtn" onclick="generate()">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Сгенерировать лендинг</span>
+                </button>
+
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="status-text" id="statusText"></div>
+            </div>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <div class="result-card">
+                <div class="result-header">
+                    <h3>✨ Результат</h3>
+                    <div class="result-actions">
+                        <button class="action-btn" onclick="downloadHTML()">📥 HTML</button>
+                        <button class="action-btn" onclick="openInNewTab()">🔗 Открыть</button>
+                        <button class="action-btn" onclick="generate()">🔄 Ещё</button>
+                    </div>
+                </div>
+
+                <div style="padding: 1rem 1.5rem 0;">
+                    <div class="preview-toggle">
+                        <button class="active" onclick="setPreview('desktop', this)">🖥 Desktop</button>
+                        <button onclick="setPreview('mobile', this)">📱 Mobile</button>
+                    </div>
+                </div>
+
+                <div class="result-iframe-wrapper" id="previewWrapper">
+                    <iframe id="previewFrame" sandbox="allow-same-origin"></iframe>
+                </div>
+
+                <div class="result-meta">
+                    <span id="resultTime"></span>
+                    <a href="#" class="result-link" id="resultLink" target="_blank"></a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Powered by <a href="https://t.me/LandAIpagebot">LandingAI</a> • 
+            <span id="generatedCount">0</span> дизайнов сгенерировано
+        </footer>
+    </div>
+
+    <script>
+        // === Config ===
+        const API_BASE = window.location.origin;
+
+        let selectedStyle = '';
+        let generatedHTML = '';
+        let generatedURL = '';
+        let generatedCount = parseInt(localStorage.getItem('landingai_count') || '0');
+
+        document.getElementById('generatedCount').textContent = generatedCount;
+
+        // Style chips
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                selectedStyle = chip.dataset.style;
+            });
+        });
+
+        // System prompt
+        const SYSTEM_PROMPT = `You are an expert frontend designer. Create distinctive, production-grade landing pages.
+
+## Rules
+- Google Fonts only. NEVER Inter, Roboto, Arial
+- CSS variables. Sharp accents. Cohesive palette
+- CSS animations, staggered reveals
+- Asymmetry, overlap, generous negative space
+- Responsive: 390px mobile, 768px tablet, 1280px desktop
+- Fluid typography with clamp()
+- Touch-friendly: buttons min 44px
+
+## Images
+Use these Unsplash URLs (pick 3-5 different ones):
+- https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=800&fit=crop
+- https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800&h=600&fit=crop
+- https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&h=400&fit=crop
+- https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&h=800&fit=crop
+
+## SEO
+Include og:title, og:description, og:image, meta description, favicon.
+
+## Output
+Return ONLY a complete HTML file with inline CSS/JS. Make it stunning.`;
+
+        async function generate() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (prompt.length < 5) {
+                alert('Опиши подробнее, что за сайт нужен!');
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const bar = document.getElementById('progressBar');
+            const fill = document.getElementById('progressFill');
+            const status = document.getElementById('statusText');
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+            bar.classList.add('active');
+            fill.style.width = '10%';
+            status.textContent = 'AI думает над дизайном...';
+
+            const fullPrompt = selectedStyle ? `${prompt}\n\nStyle: ${selectedStyle}` : prompt;
+
+            try {
+                fill.style.width = '30%';
+                
+                const resp = await fetch(`${API_BASE}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'kr/claude-haiku-4.5',
+                        messages: [
+                            { role: 'system', content: SYSTEM_PROMPT },
+                            { role: 'user', content: fullPrompt }
+                        ],
+                        temperature: 0.9,
+                        max_tokens: 8000
+                    })
+                });
+
+                fill.style.width = '60%';
+                status.textContent = 'Извлекаю HTML...';
+
+                const data = await resp.json();
+                let html = data.choices[0].message.content;
+
+                // Extract HTML from markdown
+                const match = html.match(/```(?:html)?\s*\n([\s\S]*?)```/);
+                if (match) html = match[1].trim();
+                if (!html.startsWith('<!') && !html.startsWith('<html')) {
+                    html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body>${html}</body></html>`;
+                }
+
+                generatedHTML = html;
+                fill.style.width = '80%';
+                status.textContent = 'Публикую...';
+
+                // Publish to GitHub
+                const slug = prompt.toLowerCase().replace(/[^a-z0-9а-яё]+/g, '-').slice(0, 40);
+                const uid = Math.random().toString(36).slice(2, 8);
+                const filename = `${slug}-${uid}`;
+
+                const resp2 = await fetch(`${API_BASE}/api/publish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename, html })
+                });
+                const pubData = await resp2.json();
+                generatedURL = pubData.url;
+
+                fill.style.width = '100%';
+                status.textContent = 'Готово!';
+
+                // Show result
+                const section = document.getElementById('resultSection');
+                section.classList.add('visible');
+                document.getElementById('previewFrame').srcdoc = html;
+                document.getElementById('resultLink').href = generatedURL;
+                document.getElementById('resultLink').textContent = generatedURL;
+                document.getElementById('resultTime').textContent = `Сгенерировано: ${new Date().toLocaleTimeString()}`;
+
+                // Update counter
+                generatedCount++;
+                localStorage.setItem('landingai_count', generatedCount);
+                document.getElementById('generatedCount').textContent = generatedCount;
+
+            } catch (e) {
+                status.textContent = `Ошибка: ${e.message}`;
+                console.error(e);
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                setTimeout(() => bar.classList.remove('active'), 2000);
+            }
+        }
+
+        function setPreview(mode, btn) {
+            document.querySelectorAll('.preview-toggle button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const wrapper = document.getElementById('previewWrapper');
+            const frame = document.getElementById('previewFrame');
+
+            if (mode === 'mobile') {
+                wrapper.style.paddingTop = '177.78%'; // 390/844 ratio
+                wrapper.style.maxWidth = '390px';
+                wrapper.style.margin = '0 auto';
+            } else {
+                wrapper.style.paddingTop = '56.25%';
+                wrapper.style.maxWidth = 'none';
+            }
+            frame.srcdoc = generatedHTML;
+        }
+
+        function downloadHTML() {
+            const blob = new Blob([generatedHTML], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'landing.html';
+            a.click();
+        }
+
+        function openInNewTab() {
+            if (generatedURL) window.open(generatedURL, '_blank');
+        }
+
+        // Enter key to generate
+        document.getElementById('prompt').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) generate();
+        });
+    </script>
+</body>
+</html>
