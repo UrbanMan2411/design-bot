@@ -183,7 +183,7 @@ def extract_html(text: str) -> str:
 
 
 async def generate_design(user_prompt: str) -> str:
-    """Call AI API to generate HTML design."""
+    """Call AI API to generate HTML design. Retries up to 3 times."""
     url = f"{OPENROUTER_BASE_URL}/chat/completions"
     headers = {"Content-Type": "application/json"}
     system_prompt = build_system_prompt(user_prompt)
@@ -198,17 +198,27 @@ async def generate_design(user_prompt: str) -> str:
         "max_tokens": 8000,
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers,
-                                timeout=aiohttp.ClientTimeout(total=120)) as resp:
-            if resp.status != 200:
-                error = await resp.text()
-                raise Exception(f"AI API error {resp.status}: {error}")
-            data = await resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            if not content:
-                raise Exception(f"Empty response: {json.dumps(data)[:200]}")
-            return content
+    last_error = None
+    for attempt in range(3):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers,
+                                        timeout=aiohttp.ClientTimeout(total=120)) as resp:
+                    if resp.status != 200:
+                        error = await resp.text()
+                        raise Exception(f"AI API error {resp.status}: {error}")
+                    data = await resp.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    if not content:
+                        raise Exception(f"Empty response: {json.dumps(data)[:200]}")
+                    return content
+        except (aiohttp.ClientError, Exception) as e:
+            last_error = e
+            logger.warning(f"Attempt {attempt+1}/3 failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
+
+    raise Exception(f"AI API failed after 3 attempts: {last_error}")
 
 
 async def take_screenshots(html: str, filename: str) -> tuple[str | None, str | None]:
