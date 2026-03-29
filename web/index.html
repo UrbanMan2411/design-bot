@@ -483,7 +483,7 @@
         <div class="input-section">
             <div class="tabs">
                 <button class="tab active" onclick="switchTab('generate', this)">✨ Генератор</button>
-                <button class="tab" onclick="switchTab('reference', this)">📎 Референс</button>
+                <!-- <button class="tab" onclick="switchTab('reference', this)">📎 Референс</button> -->
             </div>
 
             <!-- Generate Tab -->
@@ -509,7 +509,7 @@
             </div>
 
             <!-- Reference Tab -->
-            <div class="tab-content" id="tab-reference">
+            <div class="tab-content" id="tab-reference" style="display:none">
                 <div class="input-card">
                     <label class="input-label">Вставь ссылку на сайт-референс</label>
                     <input type="url" id="refUrl" class="url-input" placeholder="https://example.com">

@@ -658,8 +658,8 @@ async def cb_download(callback: CallbackQuery):
 
 # === Main handler ===
 
-@router.message(F.text & F.text.startswith("http"))
-async def handle_reference_url(message: Message):
+# @router.message(F.text & F.text.startswith("http"))
+# async def handle_reference_url(message: Message):
     """Handle URL reference — analyze and generate similar design."""
     url = message.text.strip()
     if not re.match(r'https?://', url):
