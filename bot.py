@@ -156,11 +156,17 @@ SYSTEM_PROMPT_TEMPLATE = """You are an expert frontend designer. Create distinct
 - Backgrounds: Gradient meshes, noise textures, geometric patterns
 
 ## Responsive Design (CRITICAL)
-- Breakpoints: 390px mobile, 768px tablet, 1280px desktop
+The HTML MUST be fully responsive and mobile-first:
+- Use CSS media queries for breakpoints: 390px (mobile), 768px (tablet), 1280px (desktop)
 - Fluid typography: clamp() for font sizes
-- Flexible grids: CSS Grid/Flexbox with wrapping
-- Touch-friendly: buttons min 44px, spaced links
-- Images: max-width: 100%, height: auto
+- Flexible grids: CSS Grid or Flexbox with wrapping
+- Images: max-width: 100%, height: auto, object-fit: cover
+- Touch-friendly: buttons min 44px, links spaced apart
+- Hide/show elements per viewport if needed
+- CRITICAL: Add `overflow-x: hidden` to html and body
+- CRITICAL: All elements must have `max-width: 100%` or `box-sizing: border-box`
+- CRITICAL: No horizontal scroll — content must fit viewport width
+- Test: must look stunning on both iPhone (390px) and desktop
 
 ## SEO (IMPORTANT)
 Include in <head>:
@@ -218,6 +224,11 @@ def fix_html_issues(html: str) -> str:
     if 'charset' not in html:
         html = html.replace('<head>', '<head>\n<meta charset="UTF-8">', 1)
     html = re.sub(r'<img(?![^>]*alt=)([^>]*)>', r'<img\1 alt="Image">', html)
+    # Fix mobile overflow
+    if 'overflow-x' not in html:
+        html = html.replace('<style>', '<style>\nhtml, body { overflow-x: hidden; max-width: 100vw; }')
+        if '<style>' not in html and '</head>' in html:
+            html = html.replace('</head>', '<style>html, body { overflow-x: hidden; max-width: 100vw; }</style>\n</head>')
     return html
 
 
