@@ -658,6 +658,170 @@ async def cb_download(callback: CallbackQuery):
 
 # === Main handler ===
 
+@router.message(F.text & F.text.startswith("http"))
+async def handle_reference_url(message: Message):
+    """Handle URL reference — analyze and generate similar design."""
+    url = message.text.strip()
+    if not re.match(r'https?://', url):
+        await message.answer("Отправьте корректную ссылку (начинается с http:// или https://)")
+        return
+
+    user_id = message.from_user.id
+    if user_locks[user_id]:
+        await message.answer("⏳ Подожди, предыдущий дизайн ещё генерируется...")
+        return
+
+    user_locks[user_id] = True
+    status_msg = await message.answer("🔍 Анализирую референс...")
+
+    try:
+        # 1. Fetch page HTML
+        await status_msg.edit_text("📥 Скачиваю страницу...")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status != 200:
+                    await status_msg.edit_text(f"❌ Не удалось загрузить страницу (HTTP {resp.status})")
+                    return
+                page_html = await resp.text()
+
+        # 2. Take screenshot of the reference
+        await status_msg.edit_text("📸 Делаю скриншот референса...")
+        ref_slug = re.sub(r'[^a-z0-9]+', '-', url.lower())[:30].strip('-')
+        ref_uid = uuid.uuid4().hex[:6]
+        ref_filename = f"ref-{ref_slug}-{ref_uid}"
+        
+        ref_desktop, _ = await take_screenshots(page_html, ref_filename)
+
+        # 3. Extract key info from HTML (styles, structure)
+        style_info = extract_style_info(page_html)
+
+        # 4. Generate similar design with AI
+        await status_msg.edit_text("🤖 Генерирую похожий дизайн...")
+        
+        clone_prompt = f"""Analyze this website reference and create a SIMILAR but ORIGINAL design.
+
+Reference URL: {url}
+Detected styles: {style_info}
+
+Create a landing page with:
+- Similar layout structure (hero, features, CTA, etc.)
+- Similar color scheme and typography style
+- Similar section arrangement
+- BUT with completely original content and images
+- Make it responsive (mobile + desktop)
+- Use Google Fonts
+
+Return ONLY a complete HTML file."""
+
+        raw_response = await generate_design(clone_prompt)
+        html = extract_html(raw_response)
+        html = fix_html_issues(html)
+        html = add_watermark(html)
+
+        # 5. Screenshot generated design
+        slug = re.sub(r'[^a-z0-9]+', '-', url.lower())[:30].strip('-')
+        uid = uuid.uuid4().hex[:6]
+        filename = f"{slug}-{uid}"
+        
+        await status_msg.edit_text("📸 Делаю превью...")
+        desktop_path, mobile_path = await take_screenshots(html, filename)
+
+        # 6. Publish
+        await status_msg.edit_text("📤 Публикую...")
+        pub_url = await asyncio.to_thread(publish_to_github, html, filename)
+
+        # 7. Track
+        user_daily_count[user_id] += 1
+        user_last_request[user_id] = datetime.now()
+        user_history[user_id].append({
+            "prompt": f"Clone: {url}",
+            "url": pub_url,
+            "filename": filename,
+            "style": "reference",
+            "time": datetime.now(),
+            "model": OPENROUTER_MODEL,
+        })
+
+        # 8. Send result with reference preview
+        await status_msg.delete()
+        keyboard = get_result_keyboard(url[:25], filename)
+
+        caption = (
+            f"✅ <b>Похожий дизайн готов!</b>\n\n"
+            f"📎 Референс: <a href=\"{url}\">{url[:40]}...</a>\n"
+            f"🔗 Результат: <a href=\"{pub_url}\">Открыть</a>"
+        )
+
+        # Send reference screenshot + result
+        has_ref = ref_desktop and os.path.exists(ref_desktop)
+        has_desktop = desktop_path and os.path.exists(desktop_path)
+
+        if has_ref and has_desktop:
+            media = [
+                InputMediaPhoto(media=FSInputFile(ref_desktop), caption=f"📎 <b>Референс:</b> {url[:30]}...", parse_mode="HTML"),
+                InputMediaPhoto(media=FSInputFile(desktop_path)),
+            ]
+            await message.answer_media_group(media)
+            await message.answer(caption, parse_mode="HTML", reply_markup=keyboard)
+        elif has_desktop:
+            await message.answer_photo(
+                photo=FSInputFile(desktop_path), caption=caption,
+                parse_mode="HTML", reply_markup=keyboard,
+            )
+        else:
+            await message.answer(caption, parse_mode="HTML", reply_markup=keyboard)
+
+        # Cleanup
+        for path in [ref_desktop, desktop_path, mobile_path]:
+            if path and os.path.exists(path):
+                os.remove(path)
+
+    except Exception as e:
+        logger.error(f"Reference error: {e}", exc_info=True)
+        try:
+            await status_msg.edit_text(f"❌ Ошибка: {e}")
+        except Exception:
+            await message.answer(f"❌ Ошибка: {e}")
+
+    finally:
+        user_locks[user_id] = False
+
+
+def extract_style_info(html: str) -> str:
+    """Extract style information from HTML."""
+    info = []
+    
+    # Extract colors
+    colors = set(re.findall(r'#[0-9a-fA-F]{3,6}', html))
+    if colors:
+        info.append(f"Colors: {', '.join(list(colors)[:5])}")
+    
+    # Extract fonts
+    fonts = set(re.findall(r"font-family:\s*['\"]?([^;'\"\},]+)", html))
+    if fonts:
+        info.append(f"Fonts: {', '.join(list(fonts)[:3])}")
+    
+    # Check sections
+    sections = []
+    if '<header' in html.lower() or 'nav' in html.lower(): sections.append('header/nav')
+    if 'hero' in html.lower() or 'banner' in html.lower(): sections.append('hero')
+    if 'feature' in html.lower() or 'service' in html.lower(): sections.append('features')
+    if 'testimonial' in html.lower() or 'review' in html.lower(): sections.append('testimonials')
+    if 'pricing' in html.lower(): sections.append('pricing')
+    if 'footer' in html.lower(): sections.append('footer')
+    if 'gallery' in html.lower() or 'portfolio' in html.lower(): sections.append('gallery')
+    if sections:
+        info.append(f"Sections: {', '.join(sections)}")
+    
+    # Check dark/light
+    if re.search(r'background:\s*#?[012][0123][0123]', html):
+        info.append("Theme: dark")
+    elif re.search(r'background:\s*#[fFfFfF]|[eEeEeE]|[dDdDdD]', html):
+        info.append("Theme: light")
+    
+    return "; ".join(info) if info else "modern landing page"
+
+
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_design_request(message: Message):
     await process_design(message, message.from_user.id, message.text.strip())

@@ -1,0 +1,19 @@
+ * Serving Flask app 'proxy'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://82.24.110.51:8080
+Press CTRL+C to quit
+127.0.0.1 - - [29/Mar/2026 19:12:34] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [29/Mar/2026 19:12:36] "POST /api/generate HTTP/1.1" 200 -
+82.24.110.51 - - [29/Mar/2026 19:13:00] "GET / HTTP/1.1" 200 -
+82.24.110.51 - - [29/Mar/2026 19:13:02] "GET /favicon.ico HTTP/1.1" 404 -
+82.24.110.51 - - [29/Mar/2026 19:14:15] "POST /api/generate HTTP/1.1" 200 -
+82.24.110.51 - - [29/Mar/2026 19:14:16] "POST /api/publish HTTP/1.1" 201 -
+31.223.87.221 - - [29/Mar/2026 19:15:34] "GET / HTTP/1.1" 200 -
+31.223.87.221 - - [29/Mar/2026 19:15:34] "GET /favicon.ico HTTP/1.1" 404 -
+31.223.87.221 - - [29/Mar/2026 19:15:49] "GET / HTTP/1.1" 304 -
+31.223.87.221 - - [29/Mar/2026 19:15:49] "GET /favicon.ico HTTP/1.1" 404 -
+31.223.87.221 - - [29/Mar/2026 19:17:07] "POST /api/generate HTTP/1.1" 200 -
+31.223.87.221 - - [29/Mar/2026 19:17:08] "POST /api/publish HTTP/1.1" 201 -
