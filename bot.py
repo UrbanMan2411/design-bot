@@ -698,27 +698,28 @@ async def handle_reference_url(message: Message):
         # 4. Generate similar design with AI
         await status_msg.edit_text("🤖 Генерирую похожий дизайн...")
         
-        clone_prompt = f"""You are a frontend designer creating a new website INSPIRED by a reference design. Here is the style analysis:
+        # Extract clean specs (no URL, no "reference" language)
+        colors = re.findall(r'#[0-9a-fA-F]{3,8}', style_info)
+        color_str = ', '.join(colors[:8]) if colors else 'modern palette'
+        
+        clone_prompt = f"""Create a professional landing page with these DESIGN SPECIFICATIONS:
 
-=== DESIGN INSPIRATION SOURCE ===
-URL: {url}
-{style_info}
+COLOR PALETTE: {color_str}
+TYPOGRAPHY: Use Google Fonts that complement the palette
+VISUAL STYLE: Modern with gradients, smooth shadows, subtle animations
+LAYOUT: Hero section, features grid, testimonials, gallery, contact form, footer
+RESPONSIVE: Mobile 390px, tablet 768px, desktop 1280px
 
-=== YOUR TASK ===
-Create a completely NEW, ORIGINAL landing page that is INSPIRED by the design patterns above. You are NOT copying — you are creating something fresh that uses similar design principles.
+Additional context: Create a landing page for a general business.
 
-Guidelines for your original creation:
-- Draw INSPIRATION from the color palette — adapt and evolve it
-- Be INSPIRED by the typography choices — use similar font pairings
-- Take INSPIRATION from the layout — reorganize and improve it
-- Be INSPIRED by the visual effects — apply similar techniques
-- Create 100% ORIGINAL text content
-- Use DIFFERENT Unsplash images
-- Make it fully responsive (mobile 390px, tablet 768px, desktop 1280px)
-- Include SEO meta tags and favicon
-- Use Google Fonts
-
-Be creative! The result should feel like a natural evolution of the inspiration, not a copy.
+Requirements:
+- Fully responsive with CSS media queries
+- Fluid typography using clamp()
+- CSS animations for page load (staggered reveals)
+- Touch-friendly buttons (min 44px)
+- SEO meta tags and Open Graph tags
+- Google Fonts (distinctive, not Inter/Roboto)
+- Use Unsplash images
 
 Return ONLY a complete HTML file with inline CSS and JS."""
 

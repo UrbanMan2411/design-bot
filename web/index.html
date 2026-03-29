@@ -661,27 +661,30 @@ Return ONLY a complete HTML file with inline CSS/JS. Make it stunning.`;
                 fill.style.width = '50%';
                 status.textContent = 'Генерирую похожий дизайн...';
 
-                const clonePrompt = `You are a frontend designer creating a website INSPIRED by a reference design.
+                const analysisText = analysis || 'modern professional design';
+                const colors = (analysisText.match(/#[0-9a-fA-F]{3,8}/g) || []).slice(0, 8).join(', ') || 'modern palette';
+                
+                const clonePrompt = `Create a professional landing page with these DESIGN SPECIFICATIONS:
 
-=== STYLE ANALYSIS ===
-URL: ${url}
-${analysis}
+COLOR PALETTE: ${colors}
+TYPOGRAPHY: Use Google Fonts that complement the palette
+VISUAL STYLE: Modern with gradients, smooth shadows, subtle animations
+LAYOUT: Hero section, features grid, testimonials, gallery, contact form, footer
+RESPONSIVE: Mobile 390px, tablet 768px, desktop 1280px
 
-${notes ? '=== USER WANTS ===\n' + notes + '\n' : ''}
-=== YOUR TASK ===
-Create a NEW, ORIGINAL landing page INSPIRED by the style analysis above. This is NOT copying — it is creative adaptation.
+${notes ? 'Additional requirements: ' + notes : 'Create a landing page for a general business.'}
 
-Rules:
-- Be INSPIRED by the colors — adapt them creatively
-- Be INSPIRED by the fonts — use similar pairings
-- Be INSPIRED by the layout — reorganize and improve
-- Apply similar visual effects (gradients, shadows, animations)
-- 100% ORIGINAL text and content
-- DIFFERENT Unsplash images
-- Responsive (mobile 390px, tablet 768px, desktop 1280px)
-- SEO meta tags, favicon, Google Fonts
+Requirements:
+- Fully responsive with CSS media queries
+- Fluid typography using clamp()
+- CSS animations for page load (staggered reveals)
+- Touch-friendly buttons (min 44px)
+- SEO meta tags and Open Graph tags
+- Google Fonts (distinctive, not Inter/Roboto)
+- Use Unsplash images
 
 Return ONLY a complete HTML file with inline CSS and JS.`;
+
 
 
                 const resp = await fetch(`${API_BASE}/api/generate`, {
