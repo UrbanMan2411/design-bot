@@ -50,10 +50,12 @@ user_locks: dict[int, bool] = defaultdict(bool)
 user_history: dict[int, list[dict]] = defaultdict(list)
 user_models: dict[int, str] = defaultdict(lambda: OPENROUTER_MODEL)
 user_daily_count: dict[int, int] = defaultdict(int)
-user_referrals: dict[int, set] = defaultdict(set)  # referrer -> set of referred ids
-user_referred_by: dict[int, int] = {}  # user -> who referred them
-user_bonus: dict[int, int] = defaultdict(int)  # bonus designs from referrals
-user_feedback: dict[str, str] = {}  # filename -> "like"|"dislike"
+user_referrals: dict[int, set] = defaultdict(set)
+user_referred_by: dict[int, int] = {}
+user_bonus: dict[int, int] = defaultdict(int)
+user_feedback: dict[str, str] = {}
+user_last_request: dict[int, datetime] = {}
+COOLDOWN_SECONDS = 30  # cooldown between requests
 last_reset: datetime = datetime.now()
 
 AVAILABLE_MODELS = {
@@ -655,6 +657,18 @@ async def process_design(target_msg: Message, user_id: int, user_prompt: str, st
         )
         return
 
+    # Cooldown check
+    last = user_last_request.get(user_id)
+    if last:
+        elapsed_since_last = (datetime.now() - last).total_seconds()
+        if elapsed_since_last < COOLDOWN_SECONDS:
+            remaining_cd = int(COOLDOWN_SECONDS - elapsed_since_last)
+            await target_msg.answer(
+                f"⏳ Подожди <b>{remaining_cd}с</b> перед следующим запросом.",
+                parse_mode="HTML",
+            )
+            return
+
     if user_locks[user_id]:
         await target_msg.answer("⏳ Подожди, предыдущий дизайн ещё генерируется...")
         return
@@ -691,6 +705,7 @@ async def process_design(target_msg: Message, user_id: int, user_prompt: str, st
         # 5. Track
         elapsed = (datetime.now() - start_time).total_seconds()
         user_daily_count[user_id] += 1
+        user_last_request[user_id] = datetime.now()
         user_history[user_id].append({
             "prompt": user_prompt,
             "url": url,
