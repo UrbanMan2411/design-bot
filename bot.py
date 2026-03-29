@@ -861,7 +861,7 @@ def extract_style_info(html: str) -> str:
     # CSS variables
     css_vars = re.findall(r'--[a-z-]+:\s*[^;]+', html)[:10]
     if css_vars:
-        lines.append(f"CSS VARIABLES:\n{'chr(10).join(css_vars)}")
+        lines.append(f"CSS VARIABLES:\n{chr(10).join(css_vars)}")
 
     return '\n\n'.join(lines) if lines else 'Standard modern landing page'
 
