@@ -698,30 +698,29 @@ async def handle_reference_url(message: Message):
         # 4. Generate similar design with AI
         await status_msg.edit_text("🤖 Генерирую похожий дизайн...")
         
-        # Extract clean specs (no URL, no "reference" language)
-        colors = re.findall(r'#[0-9a-fA-F]{3,8}', style_info)
-        color_str = ', '.join(colors[:8]) if colors else 'modern palette'
-        
-        clone_prompt = f"""Create a professional landing page with these DESIGN SPECIFICATIONS:
+        # Trim reference HTML for AI context
+        import html as html_module
+        clean_html = re.sub(r'<script[^>]*>.*?</script>', '', html_page, flags=re.S)
+        clean_html = re.sub(r'<style[^>]*>.*?</style>', '', clean_html, flags=re.S)
+        clean_html = re.sub(r'<svg[^>]*>.*?</svg>', '', clean_html, flags=re.S)
+        clean_html = re.sub(r'\s+', ' ', clean_html).strip()
+        # Take first 3000 chars as structure reference
+        html_snippet = clean_html[:3000]
 
-COLOR PALETTE: {color_str}
-TYPOGRAPHY: Use Google Fonts that complement the palette
-VISUAL STYLE: Modern with gradients, smooth shadows, subtle animations
-LAYOUT: Hero section, features grid, testimonials, gallery, contact form, footer
-RESPONSIVE: Mobile 390px, tablet 768px, desktop 1280px
+        clone_prompt = f"""Here is HTML code from a website. Rewrite it as a NEW, DIFFERENT website with original content. Keep the same visual structure and styling approach but change ALL text, images, and business type.
 
-Additional context: Create a landing page for a general business.
+ORIGINAL HTML:
+{html_snippet}
 
-Requirements:
-- Fully responsive with CSS media queries
-- Fluid typography using clamp()
-- CSS animations for page load (staggered reveals)
-- Touch-friendly buttons (min 44px)
-- SEO meta tags and Open Graph tags
-- Google Fonts (distinctive, not Inter/Roboto)
-- Use Unsplash images
+Create a completely new landing page. Change:
+- All text content (headings, paragraphs, buttons)
+- All images (use different Unsplash URLs)
+- Business type and purpose
+- Keep the visual style, layout, and CSS approach
 
-Return ONLY a complete HTML file with inline CSS and JS."""
+Make it responsive, use Google Fonts, include SEO tags.
+
+Return ONLY a complete HTML file."""
 
         raw_response = await generate_design(clone_prompt)
         html = extract_html(raw_response)
