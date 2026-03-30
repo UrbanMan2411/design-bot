@@ -26,3 +26,20 @@ WARNING: This is a development server. Do not use it in a production deployment.
  * Running on http://127.0.0.1:8080
  * Running on http://82.24.110.51:8080
 Press CTRL+C to quit
+185.208.158.91 - - [29/Mar/2026 23:48:32] "GET /login HTTP/1.1" 404 -
+149.86.227.60 - - [30/Mar/2026 00:26:20] "GET / HTTP/1.1" 200 -
+193.142.146.230 - - [30/Mar/2026 00:27:25] "POST /goform/set_LimitClient_cfg HTTP/1.1" 404 -
+5.61.209.107 - - [30/Mar/2026 00:30:14] "GET /SDK/webLanguage HTTP/1.1" 404 -
+130.49.181.91 - - [30/Mar/2026 02:17:09] "GET / HTTP/1.1" 200 -
+130.49.181.91 - - [30/Mar/2026 02:17:10] "GET /HNAP1/ HTTP/1.1" 404 -
+176.65.139.27 - - [30/Mar/2026 03:12:24] "GET /login HTTP/1.1" 404 -
+45.156.87.24 - - [30/Mar/2026 03:21:48] "GET /login HTTP/1.1" 404 -
+20.168.121.140 - - [30/Mar/2026 03:28:44] code 400, message Bad request syntax ('MGLNDD_82.24.110.51_8080')
+20.168.121.140 - - [30/Mar/2026 03:28:44] "MGLNDD_82.24.110.51_8080" HTTPStatus.BAD_REQUEST -
+ * Serving Flask app 'proxy'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://82.24.110.51:8080
+Press CTRL+C to quit

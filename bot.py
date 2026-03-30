@@ -280,20 +280,28 @@ async def generate_design(user_prompt: str) -> str:
 
 
 async def take_screenshots(html: str, filename: str) -> tuple[str | None, str | None]:
+    """Render HTML and take optimized desktop + mobile screenshots."""
     desktop_path, mobile_path = None, None
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
+
+            # Desktop — crop to visible area (not full page)
             page = await browser.new_page(viewport={"width": 1280, "height": 720})
             await page.set_content(html, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(1000)  # Wait for animations
             desktop_path = f"/tmp/{filename}-desktop.png"
-            await page.screenshot(path=desktop_path, full_page=True)
+            await page.screenshot(path=desktop_path, type="jpeg", quality=85)
             await page.close()
+
+            # Mobile — crop to visible area
             page = await browser.new_page(viewport={"width": 390, "height": 844})
             await page.set_content(html, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(1000)
             mobile_path = f"/tmp/{filename}-mobile.png"
-            await page.screenshot(path=mobile_path, full_page=True)
+            await page.screenshot(path=mobile_path, type="jpeg", quality=85)
             await page.close()
+
             await browser.close()
     except Exception as e:
         logger.error(f"Screenshot failed: {e}")
