@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LandingAI</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--tg-theme-bg-color, #0c0a09);
+            color: var(--tg-theme-text-color, #fafaf9);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 0.8rem;
+            border-radius: 12px;
+            border: 1px solid var(--tg-theme-hint-color, #444);
+            background: var(--tg-theme-secondary-bg-color, #1c1917);
+            color: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            outline: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 12px;
+            border: none;
+            background: var(--tg-theme-button-color, #f59e0b);
+            color: var(--tg-theme-button-text-color, #000);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .btn:disabled { opacity: 0.5; }
+        .result { margin-top: 1rem; }
+        .result img { width: 100%; border-radius: 12px; }
+        .result a { color: var(--tg-theme-link-color, #f59e0b); }
+        .status { text-align: center; color: var(--tg-theme-hint-color, #888); margin: 0.5rem 0; }
+    </style>
+</head>
+<body>
+    <h1>🎨 LandingAI</h1>
+    <textarea id="prompt" placeholder="Опиши дизайн..."></textarea>
+    <button class="btn" id="generateBtn" onclick="generate()">Сгенерировать</button>
+    <div class="status" id="status"></div>
+    <div class="result" id="result"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        const API = 'http://82.24.110.51:8080';
+
+        async function generate() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (prompt.length < 5) return;
+
+            const btn = document.getElementById('generateBtn');
+            const status = document.getElementById('status');
+            btn.disabled = true;
+            status.textContent = 'Генерирую...';
+
+            try {
+                const resp = await fetch(`${API}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: 'kr/claude-haiku-4.5',
+                        messages: [
+                            { role: 'system', content: 'Create a beautiful landing page. Return only HTML.' },
+                            { role: 'user', content: prompt }
+                        ],
+                        max_tokens: 8000
+                    })
+                });
+                const data = await resp.json();
+                let html = data.choices[0].message.content;
+                const m = html.match(/```html\s*\n([\s\S]*?)```/);
+                if (m) html = m[1];
+
+                const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+                const uid = Math.random().toString(36).slice(2, 8);
+
+                const pubResp = await fetch(`${API}/api/publish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: `${slug}-${uid}`, html })
+                });
+                const pubData = await pubResp.json();
+
+                status.textContent = 'Готово!';
+                document.getElementById('result').innerHTML = `
+                    <a href="${pubData.url}" target="_blank">🔗 Открыть сайт</a>
+                `;
+
+                // Send result back to bot
+                tg.sendData(JSON.stringify({ url: pubData.url, prompt }));
+
+            } catch (e) {
+                status.textContent = 'Ошибка: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

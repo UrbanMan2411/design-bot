@@ -18,12 +18,14 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile, InputMediaPhoto
 from dotenv import load_dotenv
 
-from modules.config import BOT_TOKEN, GITHUB_TOKEN, GITHUB_REPO, MAX_DESIGNS_PER_DAY, OPENROUTER_MODEL
+from modules.config import BOT_TOKEN, GITHUB_TOKEN, GITHUB_REPO, MAX_DESIGNS_PER_DAY, OPENROUTER_MODEL, LANGUAGES
 from modules.generator import generate_design
 from modules.screenshots import take_screenshots
 from modules.publisher import publish_to_github, fetch_from_github, create_zip
 from modules.html_utils import extract_html, fix_html_issues, add_watermark, validate_html
 from modules.keyboards import get_style_keyboard, get_result_keyboard, map_style
+from modules.smart_prompt import expand_prompt, format_expanded_prompt
+from modules.templates import get_templates_keyboard, get_template_prompt
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -38,6 +40,7 @@ user_feedback: dict[str, str] = {}
 user_referrals: dict[int, set] = defaultdict(set)
 user_referred_by: dict[int, int] = {}
 user_bonus: dict[int, int] = defaultdict(int)
+user_lang: dict[int, str] = defaultdict(lambda: "ru")
 REFERRAL_BONUS = 5
 COOLDOWN_SECONDS = 0
 last_reset: datetime = datetime.now()
@@ -55,6 +58,13 @@ def check_rate_limit(user_id: int) -> bool:
 
 def get_user_limit(user_id: int) -> int:
     return MAX_DESIGNS_PER_DAY + user_bonus.get(user_id, 0)
+
+
+def t(user_id: int, key: str, **kwargs) -> str:
+    """Get translated string."""
+    lang = user_lang.get(user_id, "ru")
+    text = LANGUAGES.get(lang, LANGUAGES["ru"]).get(key, key)
+    return text.format(**kwargs) if kwargs else text
 
 
 # === Handlers ===
@@ -175,6 +185,50 @@ async def cmd_gallery(message: Message):
     )
 
 
+@router.message(Command("lang"))
+async def cmd_lang(message: Message):
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="setlang:ru"),
+            InlineKeyboardButton(text="🇬🇧 English", callback_data="setlang:en"),
+        ]
+    ])
+    await message.answer("Выберите язык / Choose language:", reply_markup=kb)
+
+
+@router.message(Command("templates"))
+async def cmd_templates(message: Message):
+    await message.answer(
+        "📋 <b>Готовые шаблоны:</b>\n\nВыбери тип сайта:",
+        parse_mode="HTML",
+        reply_markup=get_templates_keyboard(),
+    )
+
+
+@router.callback_query(F.data.startswith("tmpl:"))
+async def cb_template(callback: CallbackQuery):
+    tmpl_id = callback.data[5:]
+    if tmpl_id == "cancel":
+        await callback.answer("Отменено")
+        await callback.message.delete()
+        return
+    prompt = get_template_prompt(tmpl_id)
+    if prompt:
+        await callback.answer("Генерирую по шаблону...")
+        await process_design(callback.message, callback.from_user.id, prompt)
+    else:
+        await callback.answer("Шаблон не найден")
+
+
+@router.callback_query(F.data.startswith("setlang:"))
+async def cb_set_lang(callback: CallbackQuery):
+    lang = callback.data[8:]
+    user_lang[callback.from_user.id] = lang
+    await callback.answer()
+    await callback.message.edit_text(t(callback.from_user.id, "lang_changed"))
+
+
 # === Callbacks ===
 
 @router.callback_query(F.data.startswith("pick:"))
@@ -211,11 +265,19 @@ async def cb_retry(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("ab:"))
 async def cb_ab_test(callback: CallbackQuery):
     prompt = callback.data[3:]
-    await callback.answer("Генерирую 2 варианта...")
-    for style in ["dark", "color"]:
-        full_prompt = f"{prompt}. Style: {map_style(style)}"
-        await process_design(callback.message, callback.from_user.id, full_prompt, style=style)
-        await asyncio.sleep(1)
+    await callback.answer("Генерирую 2 варианта для сравнения...")
+    # Generate two designs side by side
+    for style_code in ["dark", "color"]:
+        full_style = map_style(style_code)
+        full_prompt = f"{prompt}. Style: {full_style}"
+        await process_design(callback.message, callback.from_user.id, full_prompt, style=style_code)
+        await asyncio.sleep(2)
+    await callback.message.answer(
+        "⬆️ <b>Два варианта выше!</b>\n\n"
+        "Лайкни 👍 тот, что нравится больше.\n"
+        "Для нового варианта нажми 🔄",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("like:"))
@@ -266,7 +328,98 @@ async def cb_download(callback: CallbackQuery):
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_design_request(message: Message):
+    # Check if user wants to edit last design
+    text = message.text.strip().lower()
+    edit_keywords = ["сделай", "измени", "добавь", "убери", "поменяй", "сделать", "измени"]
+    if any(text.startswith(kw) for kw in edit_keywords):
+        history = user_history.get(message.from_user.id, [])
+        if history:
+            last = history[-1]
+            # Fetch last HTML and apply changes
+            await process_edit(message, message.from_user.id, last, message.text.strip())
+            return
     await process_design(message, message.from_user.id, message.text.strip())
+
+
+async def process_edit(target_msg: Message, user_id: int, last_design: dict, edit_request: str):
+    """Apply edits to last design."""
+    if user_locks[user_id]:
+        await target_msg.answer("⏳ Подожди, предыдущий дизайн ещё генерируется...")
+        return
+
+    user_locks[user_id] = True
+    status_msg = await target_msg.answer("✏️ Применяю правки...")
+
+    try:
+        # Fetch last HTML
+        html = await asyncio.to_thread(fetch_from_github, last_design["filename"])
+        if not html:
+            await status_msg.edit_text("❌ Не удалось загрузить предыдущий дизайн")
+            return
+
+        # Generate edited version
+        edit_prompt = f"""Here is an existing HTML page. Apply the following changes and return the updated version:
+
+CHANGES REQUESTED: {edit_request}
+
+CURRENT HTML (first 2000 chars):
+{html[:2000]}
+
+Return ONLY the complete updated HTML file."""
+
+        await status_msg.edit_text("🤖 Применяю изменения...")
+        raw_response = await generate_design(edit_prompt)
+        new_html = extract_html(raw_response)
+        new_html = fix_html_issues(new_html)
+        new_html = add_watermark(new_html)
+
+        # Save as new file
+        slug = re.sub(r'[^a-z0-9]+', '-', edit_request.lower())[:30].strip('-')
+        uid = uuid.uuid4().hex[:6]
+        filename = f"edit-{slug}-{uid}"
+
+        await status_msg.edit_text("📸 Делаю превью...")
+        desktop_path, mobile_path = await take_screenshots(new_html, filename)
+
+        await status_msg.edit_text("📤 Публикую...")
+        url = await asyncio.to_thread(publish_to_github, new_html, filename)
+
+        user_daily_count[user_id] += 1
+        user_last_request[user_id] = datetime.now()
+        user_history[user_id].append({
+            "prompt": f"Edit: {edit_request}",
+            "url": url,
+            "filename": filename,
+            "style": "edit",
+            "time": datetime.now(),
+        })
+
+        await status_msg.delete()
+        keyboard = get_result_keyboard(edit_request, filename)
+        caption = f"✏️ <b>Правки применены!</b>\n\n🔗 <a href=\"{url}\">Открыть</a>\n📝 <i>{edit_request}</i>"
+
+        has_desktop = desktop_path and os.path.exists(desktop_path)
+        if has_desktop:
+            await target_msg.answer_photo(
+                photo=FSInputFile(desktop_path), caption=caption,
+                parse_mode="HTML", reply_markup=keyboard,
+            )
+        else:
+            await target_msg.answer(caption, parse_mode="HTML", reply_markup=keyboard)
+
+        for path in [desktop_path, mobile_path]:
+            if path and os.path.exists(path):
+                os.remove(path)
+
+    except Exception as e:
+        logger.error(f"Edit error: {e}", exc_info=True)
+        try:
+            await status_msg.edit_text(f"❌ Ошибка: {e}")
+        except Exception:
+            await target_msg.answer(f"❌ Ошибка: {e}")
+
+    finally:
+        user_locks[user_id] = False
 
 
 async def process_design(target_msg: Message, user_id: int, user_prompt: str, style: str = ""):
@@ -301,9 +454,17 @@ async def process_design(target_msg: Message, user_id: int, user_prompt: str, st
     status_msg = await target_msg.answer("⏳ Генерирую дизайн...")
 
     try:
-        # 1. Generate
+        # 1. Expand prompt if short
+        final_prompt = user_prompt
+        if len(user_prompt) < 50:
+            await status_msg.edit_text("🧠 Расширяю запрос...")
+            expanded = await expand_prompt(user_prompt)
+            if expanded:
+                final_prompt = format_expanded_prompt(user_prompt, expanded)
+
+        # 2. Generate
         await status_msg.edit_text("🤖 AI создаёт дизайн...")
-        raw_response = await generate_design(user_prompt)
+        raw_response = await generate_design(final_prompt)
         html = extract_html(raw_response)
         html = fix_html_issues(html)
         html = add_watermark(html)
