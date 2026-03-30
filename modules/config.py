@@ -13,7 +13,7 @@ GITHUB_REPO = os.getenv("GITHUB_REPO")
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 PAGES_BASE_URL = f"https://{GITHUB_REPO.split('/')[0]}.github.io/{GITHUB_REPO.split('/')[1]}" if GITHUB_REPO else ""
 MAX_DESIGNS_PER_DAY = int(os.getenv("MAX_DESIGNS_PER_DAY", "20"))
-WATERMARK_TEXT = "Made with LandingAI"
+WATERMARK_TEXT = "LandingAI"
 WATERMARK_URL = "https://t.me/LandAIpagebot"
 
 # Rate tiers
