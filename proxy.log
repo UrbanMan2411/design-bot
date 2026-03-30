@@ -49,3 +49,34 @@ Press CTRL+C to quit
 149.86.227.60 - - [30/Mar/2026 04:29:24] "GET / HTTP/1.1" 200 -
 82.24.110.51 - - [30/Mar/2026 04:29:50] "POST /api/generate HTTP/1.1" 200 -
 82.24.110.51 - - [30/Mar/2026 04:29:51] "POST /api/publish HTTP/1.1" 201 -
+194.164.107.5 - - [30/Mar/2026 04:59:35] code 400, message Bad request version ('JJ\x13\x01\x13\x02\x13\x03À+À/À,À0Ì©Ì¨À\x13À\x14\x00\x9c\x00\x9d\x00/\x005\x01\x00\x00\x7f\x00\x05\x00\x05\x01\x00\x00\x00\x00\x00')
+194.164.107.5 - - [30/Mar/2026 04:59:35] "\x16\x03\x01\x00ì\x01\x00\x00è\x03\x03Â\x97óe\x9d\x80\x909q q[¨ÜâØdï·­MÞ0Ç\x03ÍU¿«ZÁ\x1f @ÀñõLÇvK\x0b$"ô£Üª´\x9d±\x83ìP%Ç\x93\x10v:Xg\x00\x0fM\x00 JJ\x13\x01\x13\x02\x13\x03À+À/À,À0Ì©Ì¨À\x13À\x14\x00\x9c\x00\x9d\x00/\x005\x01\x00\x00\x7f\x00\x05\x00\x05\x01\x00\x00\x00\x00\x00" HTTPStatus.BAD_REQUEST -
+65.49.1.80 - - [30/Mar/2026 05:09:38] "GET / HTTP/1.1" 200 -
+65.49.1.85 - - [30/Mar/2026 05:11:20] "GET /favicon.ico HTTP/1.1" 404 -
+65.49.1.89 - - [30/Mar/2026 05:13:51] "GET http://api.ipify.org/?format=json HTTP/1.1" 200 -
+65.49.1.88 - - [30/Mar/2026 05:14:15] "CONNECT www.shadowserver.org:443 HTTP/1.1" 404 -
+65.49.1.80 - - [30/Mar/2026 05:14:42] "GET /geoserver/web/ HTTP/1.1" 404 -
+194.164.107.5 - - [30/Mar/2026 05:15:43] "GET / HTTP/1.1" 200 -
+194.164.107.5 - - [30/Mar/2026 05:17:15] "GET /favicon.ico HTTP/1.1" 404 -
+176.65.149.254 - - [30/Mar/2026 05:30:28] "GET /login HTTP/1.1" 404 -
+91.224.92.125 - - [30/Mar/2026 05:33:48] "GET /SDK/webLanguage HTTP/1.1" 404 -
+5.187.35.142 - - [30/Mar/2026 05:42:44] "GET /..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd HTTP/1.1" 404 -
+176.65.139.27 - - [30/Mar/2026 06:21:08] "GET /login HTTP/1.1" 404 -
+80.66.83.43 - - [30/Mar/2026 06:42:22] code 400, message Bad HTTP/0.9 request type ('\x03\x00\x00/*à\x00\x00\x00\x00\x00Cookie:')
+80.66.83.43 - - [30/Mar/2026 06:42:22] "\x03\x00\x00/*à\x00\x00\x00\x00\x00Cookie: mstshash=Administr" HTTPStatus.BAD_REQUEST -
+85.25.172.249 - - [30/Mar/2026 06:44:30] "GET /cgi-bin/luci/;stok=/locale HTTP/1.1" 404 -
+123.200.25.54 - - [30/Mar/2026 06:52:48] "GET / HTTP/1.1" 200 -
+192.109.200.221 - - [30/Mar/2026 06:52:53] "GET /login HTTP/1.1" 404 -
+16.58.56.214 - - [30/Mar/2026 06:53:48] "GET / HTTP/1.1" 200 -
+16.58.56.214 - - [30/Mar/2026 06:55:30] "GET / HTTP/1.1" 200 -
+20.65.193.121 - - [30/Mar/2026 06:56:11] code 400, message Bad request syntax ('MGLNDD_82.24.110.51_8080')
+20.65.193.121 - - [30/Mar/2026 06:56:11] "MGLNDD_82.24.110.51_8080" HTTPStatus.BAD_REQUEST -
+16.58.56.214 - - [30/Mar/2026 06:57:06] code 400, message Bad request version ('À\x14À')
+16.58.56.214 - - [30/Mar/2026 06:57:06] "\x16\x03\x01\x00{\x01\x00\x00w\x03\x03\x95Òn}N3|\x1dÍÕM>$_\x1d{KKp_\x14[:\x90´A\x0e¹§e×´\x00\x00\x1aÀ/À+À\x11À\x07À\x13À\x09À\x14À" HTTPStatus.BAD_REQUEST -
+16.58.56.214 - - [30/Mar/2026 06:58:37] code 400, message Bad request syntax ('SSH-2.0-Go')
+16.58.56.214 - - [30/Mar/2026 06:58:37] "SSH-2.0-Go" HTTPStatus.BAD_REQUEST -
+198.235.24.67 - - [30/Mar/2026 06:59:27] "GET / HTTP/1.1" 200 -
+16.58.56.214 - - [30/Mar/2026 06:59:44] code 400, message Bad request version ('À\x14À')
+16.58.56.214 - - [30/Mar/2026 06:59:44] "\x16\x03\x01\x00{\x01\x00\x00w\x03\x039\x92Ö\x91\x1e\x13\x9a{·n\x0e+"çØÅ6ú\x84îóK\x18ÒéV\x85þ\x06É\x7fÒ\x00\x00\x1aÀ/À+À\x11À\x07À\x13À\x09À\x14À" HTTPStatus.BAD_REQUEST -
+80.82.77.202 - - [30/Mar/2026 07:03:52] "GET / HTTP/1.0" 200 -
+87.236.176.214 - - [30/Mar/2026 07:05:37] "GET / HTTP/1.1" 200 -

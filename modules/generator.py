@@ -53,6 +53,7 @@ Don't repeat the same image twice. Wide (1200x800) for heroes, square for cards.
 ## Output
 Return ONLY a complete, self-contained HTML file with inline CSS and JS.
 Use Google Fonts. Include viewport meta. All images must have alt attributes.
+CRITICAL: Write ALL text content in the SAME LANGUAGE as the user's request. If user writes in Russian, ALL text must be in Russian. If in English — in English. Match the user's language exactly.
 Make it stunning on mobile and desktop."""
 
 
