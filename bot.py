@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Design Bot v6 — Telegram бот-дизайнер
+Design Bot v7 — Telegram бот-дизайнер
 Модульная архитектура с тестами.
 """
 
@@ -87,7 +87,7 @@ async def cmd_start(message: Message):
 
     referral_link = f"https://t.me/LandAIpagebot?start=ref{message.from_user.id}"
     await message.answer(
-        "🎨 <b>Design Bot v6</b>\n\n"
+        "🎨 <b>Design Bot v7</b>\n\n"
         "Опиши дизайн — получишь HTML + скриншот + ссылку.\n\n"
         "<b>Команды:</b>\n"
         "/styles — выбрать стиль\n"
@@ -559,7 +559,7 @@ async def main():
     dp = Dispatcher()
     dp.include_router(router)
 
-    print("🤖 Design Bot v6 started!")
+    print("🤖 Design Bot v7 started!")
     await dp.start_polling(bot)
 
 
