@@ -73,8 +73,6 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
-
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref"):
         try:
@@ -88,9 +86,6 @@ async def cmd_start(message: Message):
             pass
 
     referral_link = f"https://t.me/LandAIpagebot?start=ref{message.from_user.id}"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📱 Открыть приложение", web_app=WebAppInfo(url="http://82.24.110.51:8080/miniapp.html"))],
-    ])
     await message.answer(
         "🎨 <b>Design Bot v7</b>\n\n"
         "Опиши дизайн — получишь HTML + скриншот + ссылку.\n\n"
@@ -102,9 +97,9 @@ async def cmd_start(message: Message):
         "/referral — пригласить друга (+5 дизайнов)\n"
         "/gallery — галерея дизайнов\n"
         "/lang — сменить язык\n"
-        "/help — помощь",
+        "/help — помощь\n\n"
+        "🌐 Веб: http://82.24.110.51:8080",
         parse_mode="HTML",
-        reply_markup=kb,
     )
 
 
